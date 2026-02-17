@@ -324,7 +324,7 @@
             <div class="summary-row" style="border-bottom:none;">
                 <label class="form-check summary-label">
                     <input type="checkbox" name="withholding_tax_enabled" id="whtEnabled" onchange="calcTotals()" {% if
-                        (not document) or (document and document.withholding_tax_enabled) %}checked{% endif %}>
+                        document and document.withholding_tax_enabled %}checked{% endif %}>
                     <span>หักภาษี ณ ที่จ่าย</span>
                 </label>
                 <div class="discount-input-group">

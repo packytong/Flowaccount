@@ -113,7 +113,7 @@ class Document(db.Model):
     vat_enabled = db.Column(db.Boolean, default=True)
     vat_amount = db.Column(db.Float, default=0.0)
     grand_total = db.Column(db.Float, default=0.0)
-    withholding_tax_enabled = db.Column(db.Boolean, default=True)
+    withholding_tax_enabled = db.Column(db.Boolean, default=False)
     withholding_tax_percent = db.Column(db.Float, default=7.0)
     withholding_tax_amount = db.Column(db.Float, default=0.0)
     net_total = db.Column(db.Float, default=0.0)
