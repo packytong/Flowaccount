@@ -1,0 +1,563 @@
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
+from datetime import datetime, date, timedelta
+import os
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'flowaccount-local-secret-key-2026'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flowaccount.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
+
+db.init_app(app)
+
+# Make doc_types available to all templates
+@app.context_processor
+def inject_doc_types():
+    return dict(doc_types=DOC_TYPES, doc_statuses=DOC_STATUSES, now=datetime.now)
+
+
+def generate_doc_number(doc_type):
+    """Generate document number like QT2026020001"""
+    prefix = DOC_TYPES[doc_type]['prefix']
+    now = datetime.now()
+    year_month = now.strftime('%Y%m')
+    prefix_pattern = f"{prefix}{year_month}"
+
+    last_doc = Document.query.filter(
+        Document.doc_number.like(f"{prefix_pattern}%")
+    ).order_by(Document.doc_number.desc()).first()
+
+    if last_doc:
+        last_num = int(last_doc.doc_number[-4:])
+        new_num = last_num + 1
+    else:
+        new_num = 1
+
+    return f"{prefix_pattern}{new_num:04d}"
+
+
+# ==================== DASHBOARD ====================
+@app.route('/')
+def dashboard():
+    stats = {}
+    for doc_type, info in DOC_TYPES.items():
+        count = Document.query.filter_by(doc_type=doc_type).count()
+        total = db.session.query(db.func.sum(Document.grand_total)).filter_by(doc_type=doc_type).scalar() or 0
+        stats[doc_type] = {'count': count, 'total': total, **info}
+
+    recent_docs = Document.query.order_by(Document.created_at.desc()).limit(10).all()
+    return render_template('dashboard.html', stats=stats, recent_docs=recent_docs)
+
+
+# ==================== DOCUMENT LIST ====================
+@app.route('/documents/<doc_type>')
+def document_list(doc_type):
+    if doc_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+
+    search = request.args.get('search', '')
+    page = request.args.get('page', 1, type=int)
+
+    query = Document.query.filter_by(doc_type=doc_type)
+    if search:
+        query = query.join(Customer, isouter=True).filter(
+            db.or_(
+                Document.doc_number.contains(search),
+                Customer.name.contains(search),
+            )
+        )
+
+    documents = query.order_by(Document.created_at.desc()).paginate(
+        page=page, per_page=20, error_out=False
+    )
+
+    # Build related documents map for each document on the page
+    related_map = {}
+    for doc in documents.items:
+        related_map[doc.id] = get_document_chain(doc)
+
+    return render_template('documents.html',
+                           doc_type=doc_type,
+                           doc_info=DOC_TYPES[doc_type],
+                           documents=documents,
+                           search=search,
+                           related_map=related_map)
+
+
+def get_document_chain(doc):
+    """Find all related documents in the conversion chain for a given document."""
+    # Walk up to the root
+    root = doc
+    while root.source_document_id:
+        parent = Document.query.get(root.source_document_id)
+        if parent:
+            root = parent
+        else:
+            break
+
+    # Collect all docs from root downward
+    chain = []
+    _collect_descendants(root, chain)
+
+    # Return all docs except the current one, keyed by (doc_type, id)
+    related = []
+    for d in chain:
+        if d.id != doc.id:
+            related.append({
+                'id': d.id,
+                'doc_type': d.doc_type,
+                'doc_number': d.doc_number,
+                'icon': DOC_TYPES[d.doc_type]['icon'],
+                'color': DOC_TYPES[d.doc_type]['color'],
+                'prefix': DOC_TYPES[d.doc_type]['prefix'],
+                'name_th': DOC_TYPES[d.doc_type]['name_th'],
+            })
+    return related
+
+
+def _collect_descendants(doc, chain):
+    """Recursively collect a document and all its descendants."""
+    chain.append(doc)
+    for child in doc.child_documents:
+        _collect_descendants(child, chain)
+
+
+# ==================== CREATE DOCUMENT ====================
+@app.route('/documents/<doc_type>/new', methods=['GET', 'POST'])
+def document_new(doc_type):
+    if doc_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        return save_document(doc_type, None)
+
+    doc_number = generate_doc_number(doc_type)
+    company = Company.query.first()
+    customers = Customer.query.order_by(Customer.name).all()
+    today = date.today()
+
+    return render_template('document_form.html',
+                           doc_type=doc_type,
+                           doc_info=DOC_TYPES[doc_type],
+                           doc_number=doc_number,
+                           document=None,
+                           company=company,
+                           customers=customers,
+                           today=today)
+
+
+# ==================== EDIT DOCUMENT ====================
+@app.route('/documents/<doc_type>/<int:doc_id>/edit', methods=['GET', 'POST'])
+def document_edit(doc_type, doc_id):
+    if doc_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+
+    document = Document.query.get_or_404(doc_id)
+
+    if request.method == 'POST':
+        return save_document(doc_type, document)
+
+    company = Company.query.first()
+    customers = Customer.query.order_by(Customer.name).all()
+
+    return render_template('document_form.html',
+                           doc_type=doc_type,
+                           doc_info=DOC_TYPES[doc_type],
+                           doc_number=document.doc_number,
+                           document=document,
+                           company=company,
+                           customers=customers,
+                           today=date.today())
+
+
+def save_document(doc_type, document):
+    """Save or update a document from form data"""
+    try:
+        data = request.form
+        is_new = document is None
+
+        if is_new:
+            document = Document()
+            document.doc_type = doc_type
+            document.doc_number = data.get('doc_number', generate_doc_number(doc_type))
+
+        # Customer handling
+        customer_id = data.get('customer_id')
+        customer_name = data.get('customer_name', '').strip()
+        customer_address = data.get('customer_address', '').strip()
+        customer_phone = data.get('customer_phone', '').strip()
+        customer_tax_id = data.get('customer_tax_id', '').strip()
+        customer_branch = data.get('customer_branch', '').strip()
+
+        if customer_name:
+            if customer_id and customer_id != 'new':
+                customer = Customer.query.get(int(customer_id))
+                if customer:
+                    customer.name = customer_name
+                    customer.address = customer_address
+                    customer.phone = customer_phone
+                    customer.tax_id = customer_tax_id
+                    customer.branch = customer_branch
+            else:
+                customer = Customer(
+                    name=customer_name,
+                    address=customer_address,
+                    phone=customer_phone,
+                    tax_id=customer_tax_id,
+                    branch=customer_branch,
+                )
+                db.session.add(customer)
+                db.session.flush()
+            document.customer_id = customer.id
+
+        # Document fields
+        doc_date_str = data.get('doc_date', '')
+        if doc_date_str:
+            document.doc_date = datetime.strptime(doc_date_str, '%Y-%m-%d').date()
+        document.credit_days = int(data.get('credit_days', 0))
+        due_date_str = data.get('due_date', '')
+        if due_date_str:
+            document.due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        else:
+            document.due_date = document.doc_date + timedelta(days=document.credit_days)
+
+        document.reference_number = data.get('reference_number', '')
+        document.salesperson = data.get('salesperson', '')
+        document.project = data.get('project', '')
+        document.price_type = data.get('price_type', 'ราคาไม่รวมภาษี')
+
+        # Totals
+        document.subtotal = float(data.get('subtotal', 0))
+        document.discount_percent = float(data.get('discount_percent', 0))
+        document.discount_amount = float(data.get('discount_amount', 0))
+        document.after_discount = float(data.get('after_discount', 0))
+        document.vat_enabled = data.get('vat_enabled') == 'on'
+        document.vat_amount = float(data.get('vat_amount', 0))
+        document.grand_total = float(data.get('grand_total', 0))
+        document.withholding_tax_enabled = data.get('withholding_tax_enabled') == 'on'
+        document.withholding_tax_percent = float(data.get('withholding_tax_percent', 7))
+        document.withholding_tax_amount = float(data.get('withholding_tax_amount', 0))
+        document.net_total = float(data.get('net_total', 0))
+
+        document.notes = data.get('notes', '')
+        document.internal_notes = data.get('internal_notes', '')
+
+        # Status
+        document.status = data.get('status', 'saved')
+
+        if is_new:
+            db.session.add(document)
+        db.session.flush()
+
+        # Items - remove old, add new
+        DocumentItem.query.filter_by(document_id=document.id).delete()
+
+        item_descriptions = request.form.getlist('item_description[]')
+        item_quantities = request.form.getlist('item_quantity[]')
+        item_units = request.form.getlist('item_unit[]')
+        item_prices = request.form.getlist('item_unit_price[]')
+        item_amounts = request.form.getlist('item_amount[]')
+
+        for i in range(len(item_descriptions)):
+            desc = item_descriptions[i].strip()
+            if not desc:
+                continue
+            item = DocumentItem(
+                document_id=document.id,
+                order=i + 1,
+                description=desc,
+                details=request.form.getlist('item_details[]')[i] if i < len(request.form.getlist('item_details[]')) else '',
+                quantity=float(item_quantities[i]) if i < len(item_quantities) and item_quantities[i] else 0,
+                unit=item_units[i] if i < len(item_units) else '',
+                unit_price=float(item_prices[i]) if i < len(item_prices) and item_prices[i] else 0,
+                amount=float(item_amounts[i]) if i < len(item_amounts) and item_amounts[i] else 0,
+            )
+            db.session.add(item)
+
+        db.session.commit()
+        flash(f'บันทึก{DOC_TYPES[doc_type]["name_th"]}เรียบร้อย', 'success')
+        return redirect(url_for('document_view', doc_type=doc_type, doc_id=document.id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+        return redirect(url_for('document_list', doc_type=doc_type))
+
+
+# ==================== VIEW DOCUMENT ====================
+@app.route('/documents/<doc_type>/<int:doc_id>')
+def document_view(doc_type, doc_id):
+    if doc_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+
+    document = Document.query.get_or_404(doc_id)
+    company = Company.query.first()
+
+    # Find linked documents
+    linked_docs = Document.query.filter_by(source_document_id=document.id).all()
+    source_doc = document.source_document if document.source_document_id else None
+
+    return render_template('document_view.html',
+                           doc_type=doc_type,
+                           doc_info=DOC_TYPES[doc_type],
+                           document=document,
+                           company=company,
+                           linked_docs=linked_docs,
+                           source_doc=source_doc)
+
+
+# ==================== DELETE DOCUMENT ====================
+@app.route('/api/documents/<int:doc_id>', methods=['DELETE'])
+def document_delete(doc_id):
+    document = Document.query.get_or_404(doc_id)
+    doc_type = document.doc_type
+    db.session.delete(document)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'ลบเอกสารเรียบร้อย'})
+
+
+# ==================== STATUS UPDATE ====================
+@app.route('/api/documents/<int:doc_id>/status', methods=['POST'])
+def document_update_status(doc_id):
+    document = Document.query.get_or_404(doc_id)
+    data = request.json
+    new_status = data.get('status', '')
+    if new_status not in DOC_STATUSES:
+        return jsonify({'success': False, 'message': 'สถานะไม่ถูกต้อง'}), 400
+    document.status = new_status
+    db.session.commit()
+    status_info = DOC_STATUSES[new_status]
+    return jsonify({
+        'success': True,
+        'status': new_status,
+        'name_th': status_info['name_th'],
+        'color': status_info['color'],
+        'bg': status_info['bg'],
+    })
+
+
+# ==================== CONVERT DOCUMENT ====================
+@app.route('/documents/<doc_type>/<int:doc_id>/convert/<target_type>')
+def document_convert(doc_type, doc_id, target_type):
+    """Convert a document to another type (e.g. quotation → billing)"""
+    if doc_type not in DOC_TYPES or target_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+
+    source = Document.query.get_or_404(doc_id)
+
+    # Check if already converted
+    existing = Document.query.filter_by(source_document_id=source.id, doc_type=target_type).first()
+    if existing:
+        flash(f'เอกสารนี้ถูกสร้าง{DOC_TYPES[target_type]["name_th"]}แล้ว ({existing.doc_number})', 'error')
+        return redirect(url_for('document_view', doc_type=target_type, doc_id=existing.id))
+
+    try:
+        new_doc = Document()
+        new_doc.doc_type = target_type
+        new_doc.doc_number = generate_doc_number(target_type)
+        new_doc.status = 'saved'
+        new_doc.customer_id = source.customer_id
+        new_doc.source_document_id = source.id
+        new_doc.doc_date = date.today()
+        new_doc.credit_days = source.credit_days
+        new_doc.due_date = date.today() + timedelta(days=source.credit_days)
+        new_doc.reference_number = source.doc_number  # Reference back to source
+        new_doc.salesperson = source.salesperson
+        new_doc.project = source.project
+        new_doc.price_type = source.price_type
+        new_doc.subtotal = source.subtotal
+        new_doc.discount_percent = source.discount_percent
+        new_doc.discount_amount = source.discount_amount
+        new_doc.after_discount = source.after_discount
+        new_doc.vat_enabled = source.vat_enabled
+        new_doc.vat_amount = source.vat_amount
+        new_doc.grand_total = source.grand_total
+        new_doc.withholding_tax_enabled = source.withholding_tax_enabled
+        new_doc.withholding_tax_percent = source.withholding_tax_percent
+        new_doc.withholding_tax_amount = source.withholding_tax_amount
+        new_doc.net_total = source.net_total
+        new_doc.notes = source.notes
+        new_doc.internal_notes = source.internal_notes
+
+        db.session.add(new_doc)
+        db.session.flush()
+
+        # Copy items
+        for item in source.items:
+            new_item = DocumentItem(
+                document_id=new_doc.id,
+                order=item.order,
+                description=item.description,
+                details=item.details,
+                quantity=item.quantity,
+                unit=item.unit,
+                unit_price=item.unit_price,
+                amount=item.amount,
+            )
+            db.session.add(new_item)
+
+        # Mark source as converted
+        source.status = 'converted'
+
+        db.session.commit()
+        flash(f'สร้าง{DOC_TYPES[target_type]["name_th"]} {new_doc.doc_number} จาก {source.doc_number} เรียบร้อย', 'success')
+        return redirect(url_for('document_view', doc_type=target_type, doc_id=new_doc.id))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+        return redirect(url_for('document_view', doc_type=doc_type, doc_id=doc_id))
+
+
+# ==================== SETTINGS ====================
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    company = Company.query.first()
+
+    if request.method == 'POST':
+        if not company:
+            company = Company()
+            db.session.add(company)
+
+        company.name = request.form.get('name', '')
+        company.address = request.form.get('address', '')
+        company.phone = request.form.get('phone', '')
+        company.email = request.form.get('email', '')
+        company.tax_id = request.form.get('tax_id', '')
+        company.branch = request.form.get('branch', 'สำนักงานใหญ่')
+
+        # Handle logo upload
+        if 'logo' in request.files:
+            logo = request.files['logo']
+            if logo.filename:
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                logo_filename = 'company_logo' + os.path.splitext(logo.filename)[1]
+                logo_path = os.path.join(app.config['UPLOAD_FOLDER'], logo_filename)
+                logo.save(logo_path)
+                logo_path = os.path.join(app.config['UPLOAD_FOLDER'], logo_filename)
+                logo.save(logo_path)
+                company.logo_path = f'/static/uploads/{logo_filename}'
+
+        # Handle signature upload
+        if 'signature' in request.files:
+            signature = request.files['signature']
+            if signature.filename:
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                signature_filename = 'company_signature' + os.path.splitext(signature.filename)[1]
+                signature_path = os.path.join(app.config['UPLOAD_FOLDER'], signature_filename)
+                signature.save(signature_path)
+                company.signature_path = f'/static/uploads/{signature_filename}'
+
+        db.session.commit()
+        flash('บันทึกข้อมูลบริษัทเรียบร้อย', 'success')
+        return redirect(url_for('settings'))
+
+    return render_template('settings.html', company=company)
+
+
+# ==================== API ====================
+@app.route('/api/customers')
+def api_customers():
+    search = request.args.get('q', '')
+    query = Customer.query
+    if search:
+        query = query.filter(Customer.name.contains(search))
+    customers = query.order_by(Customer.name).limit(20).all()
+    return jsonify([c.to_dict() for c in customers])
+
+
+@app.route('/api/customers', methods=['POST'])
+def api_create_customer():
+    data = request.json
+    customer = Customer(
+        name=data.get('name', ''),
+        address=data.get('address', ''),
+        phone=data.get('phone', ''),
+        tax_id=data.get('tax_id', ''),
+        branch=data.get('branch', 'สำนักงานใหญ่'),
+        email=data.get('email', ''),
+    )
+    db.session.add(customer)
+    db.session.commit()
+    return jsonify(customer.to_dict()), 201
+
+
+# ==================== TEMPLATE FILTERS ====================
+@app.template_filter('format_number')
+def format_number(value):
+    """Format number with commas and 2 decimal places"""
+    try:
+        return '{:,.2f}'.format(float(value))
+    except (ValueError, TypeError):
+        return '0.00'
+
+
+@app.template_filter('thai_date')
+def thai_date(value):
+    """Format date in Thai format DD/MM/YYYY"""
+    if isinstance(value, str):
+        value = datetime.strptime(value, '%Y-%m-%d').date()
+    if value:
+        return value.strftime('%d/%m/%Y')
+    return ''
+
+
+@app.template_filter('baht_text')
+def baht_text(value):
+    """Convert number to Thai baht text"""
+    try:
+        value = float(value)
+    except (ValueError, TypeError):
+        return ''
+
+    thai_nums = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า']
+    thai_pos = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน']
+
+    def _num_to_thai(n):
+        if n == 0:
+            return 'ศูนย์'
+        result = ''
+        s = str(int(n))
+        length = len(s)
+        for i, digit in enumerate(s):
+            d = int(digit)
+            pos = length - i - 1
+            if d == 0:
+                continue
+            if pos == 0 and d == 1 and length > 1:
+                result += 'เอ็ด'
+            elif pos == 1 and d == 2:
+                result += 'ยี่สิบ'
+            elif pos == 1 and d == 1:
+                result += 'สิบ'
+            else:
+                result += thai_nums[d] + thai_pos[pos]
+        return result
+
+    baht = int(value)
+    satang = round((value - baht) * 100)
+
+    text = _num_to_thai(baht) + 'บาท'
+    if satang == 0:
+        text += 'ถ้วน'
+    else:
+        text += _num_to_thai(satang) + 'สตางค์'
+    return text
+
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        # Create default company if not exists
+        if not Company.query.first():
+            company = Company(name='บริษัทของคุณ', branch='สำนักงานใหญ่')
+            db.session.add(company)
+            db.session.commit()
+    app.run(debug=True, port=5000)

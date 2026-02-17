@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+
+{% block title %}ตั้งค่าข้อมูลบริษัท{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="ri-settings-3-line"></i> ตั้งค่าข้อมูลบริษัท</h1>
+</div>
+
+<form method="POST" enctype="multipart/form-data" class="settings-form">
+    <div class="card">
+        <div class="section-title">โลโก้บริษัท</div>
+        <div class="logo-upload">
+            <div class="logo-preview" id="logoPreview">
+                {% if company and company.logo_path %}
+                <img src="{{ company.logo_path }}" alt="Logo">
+                {% else %}
+                <div class="placeholder">
+                    <i class="ri-image-add-line"></i>
+                    อัปโหลดโลโก้
+                </div>
+                {% endif %}
+            </div>
+            <div>
+                <input type="file" name="logo" id="logoInput" accept="image/*" style="display:none"
+                    onchange="previewLogo(this)">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('logoInput').click()">
+                    <i class="ri-upload-line"></i> เลือกไฟล์
+                </button>
+                <p style="margin-top:8px; font-size:0.8rem; color:var(--text-muted);">แนะนำ: PNG หรือ JPG ขนาดไม่เกิน
+                    5125x2888px</p>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">ลายเซ็นดิจิตอล (ผู้อนุมัติ)</div>
+        <div class="logo-upload">
+            <div class="logo-preview" id="signaturePreview" style="width:200px; height:70px;">
+                {% if company and company.signature_path %}
+                <img src="{{ company.signature_path }}" alt="Signature" style="max-height:100%; max-width:100%;">
+                {% else %}
+                <div class="placeholder" style="font-size:0.8rem;">
+                    <i class="ri-pen-nib-line"></i>
+                    อัปโหลดลายเซ็น
+                </div>
+                {% endif %}
+            </div>
+            <div>
+                <input type="file" name="signature" id="signatureInput" accept="image/*" style="display:none"
+                    onchange="previewSignature(this)">
+                <button type="button" class="btn btn-secondary"
+                    onclick="document.getElementById('signatureInput').click()">
+                    <i class="ri-upload-line"></i> เลือกไฟล์
+                </button>
+                <p style="margin-top:8px; font-size:0.8rem; color:var(--text-muted);">แนะนำ: PNG หรือ JPG ขนาด 400x140px
+                    พื้นหลังโปร่งใส</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">ข้อมูลบริษัท</div>
+        <div class="form-group">
+            <label class="form-label">ชื่อบริษัท</label>
+            <input type="text" class="form-control" name="name" value="{{ company.name if company else '' }}"
+                placeholder="ชื่อบริษัทของคุณ">
+        </div>
+        <div class="form-group">
+            <label class="form-label">ที่อยู่</label>
+            <textarea class="form-control" name="address" rows="3"
+                placeholder="ที่อยู่บริษัท">{{ company.address if company else '' }}</textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div class="form-group">
+                <label class="form-label">เบอร์โทรศัพท์</label>
+                <input type="text" class="form-control" name="phone" value="{{ company.phone if company else '' }}"
+                    placeholder="เบอร์โทรศัพท์">
+            </div>
+            <div class="form-group">
+                <label class="form-label">อีเมล</label>
+                <input type="email" class="form-control" name="email" value="{{ company.email if company else '' }}"
+                    placeholder="อีเมลบริษัท">
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div class="form-group">
+                <label class="form-label">เลขประจำตัวผู้เสียภาษี</label>
+                <input type="text" class="form-control" name="tax_id" value="{{ company.tax_id if company else '' }}"
+                    placeholder="เลขประจำตัวผู้เสียภาษี 13 หลัก">
+            </div>
+            <div class="form-group">
+                <label class="form-label">สาขา</label>
+                <input type="text" class="form-control" name="branch"
+                    value="{{ company.branch if company else 'สำนักงานใหญ่' }}" placeholder="สำนักงานใหญ่">
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-success btn-lg">
+        <i class="ri-save-line"></i> บันทึกข้อมูล
+    </button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function previewLogo(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById('logoPreview').innerHTML =
+                    '<img src="' + e.target.result + '" alt="Logo Preview">';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function previewSignature(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                document.getElementById('signaturePreview').innerHTML =
+                    '<img src="' + e.target.result + '" alt="Signature Preview" style="max-height:100%; max-width:100%;">';
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+</script>
+{% endblock %}

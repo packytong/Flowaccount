@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ doc_info.name_th }} {{ document.doc_number }}{% endblock %}
+
+{% block content %}
+<!-- Action Buttons -->
+<div class="doc-view-actions">
+    <a href="{{ url_for('document_list', doc_type=doc_type) }}" class="btn btn-secondary">
+        <i class="ri-arrow-left-line"></i> กลับ
+    </a>
+    <a href="{{ url_for('document_edit', doc_type=doc_type, doc_id=document.id) }}" class="btn btn-secondary">
+        <i class="ri-edit-line"></i> แก้ไข
+    </a>
+    <button class="btn btn-primary" onclick="window.print()">
+        <i class="ri-printer-line"></i> พิมพ์ / PDF
+    </button>
+</div>
+
+<!-- A4 Document Preview -->
+<div class="doc-view-container">
+    <div class="doc-print">
+
+        <!-- ===== HEADER ===== -->
+        <div class="doc-print-header">
+            <!-- Left: Company Info -->
+            <div class="doc-print-company">
+                {% if company and company.logo_path %}
+                <img src="{{ company.logo_path }}" alt="Logo" class="company-logo">
+                {% endif %}
+                <div class="company-name">{{ company.name if company else 'บริษัทของคุณ' }} {% if company and
+                    company.branch %}({{ company.branch }}){% endif %}</div>
+                <div class="company-info">
+                    {{ company.address | replace('\n', '<br>') | safe if company else '' }}<br>
+                    {% if company and company.tax_id %}เลขประจำตัวผู้เสียภาษี {{ company.tax_id }}<br>{% endif %}
+                    {% if company and company.phone %}เบอร์มือถือ {{ company.phone }}<br>{% endif %}
+                    {% if company and company.email %}{{ company.email }}{% endif %}
+                </div>
+            </div>
+
+            <!-- Right: Doc Title & Meta -->
+            <div class="doc-print-title-block">
+                <div class="doc-print-title" style="color: {{ doc_info.color }};">{{ doc_info.name_th }}</div>
+                <div class="doc-print-divider"></div>
+                <div class="doc-print-meta">
+                    <div class="meta-row">
+                        <span class="meta-label" style="color: {{ doc_info.color }};">เลขที่</span>
+                        <span class="meta-value">{{ document.doc_number }}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label" style="color: {{ doc_info.color }};">วันที่</span>
+                        <span class="meta-value">{{ document.doc_date|thai_date }}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label" style="color: {{ doc_info.color }};">เครดิต</span>
+                        <span class="meta-value">{{ document.credit_days }} วัน</span>
+                    </div>
+                    {% if document.salesperson %}
+                    <div class="meta-row">
+                        <span class="meta-label" style="color: {{ doc_info.color }};">ผู้ขาย</span>
+                        <span class="meta-value">{{ document.salesperson }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== CUSTOMER INFO ===== -->
+        {% if document.customer %}
+        <div class="doc-print-customer">
+            <div class="customer-header" style="color: {{ doc_info.color }};">ลูกค้า</div>
+            <div class="customer-detail">
+                <div class="customer-name">{{ document.customer.name }} {% if document.customer.branch %}({{
+                    document.customer.branch }}){% endif %}</div>
+                {% if document.customer.address %}{{ document.customer.address }}<br>{% endif %}
+                {% if document.customer.tax_id %}เลขประจำตัวผู้เสียภาษี {{ document.customer.tax_id }}{% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ===== ITEMS TABLE ===== -->
+        <table class="doc-print-items">
+            <thead>
+                <tr style="background-color: {{ doc_info.color }};">
+                    <th class="col-no">#</th>
+                    <th class="col-desc">รายละเอียด</th>
+                    <th class="col-qty">จำนวน</th>
+                    <th class="col-price">ราคาต่อหน่วย</th>
+                    <th class="col-amt">ยอดรวม</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in document.items %}
+                <tr>
+                    <td class="col-no">{{ item.order }}</td>
+                    <td class="col-desc">
+                        {{ item.description }}
+                        {% if item.details %}
+                        <div class="item-details" style="font-size:0.9em; color:#64748b; white-space: pre-line;">{{
+                            item.details }}</div>
+                        {% endif %}
+                        {% if item.unit %}<br><small class="item-unit">{{ item.unit }}</small>{% endif %}
+                    </td>
+                    <td class="col-qty">{{ item.quantity|format_number }}</td>
+                    <td class="col-price">{{ item.unit_price|format_number }}</td>
+                    <td class="col-amt">{{ item.amount|format_number }}</td>
+                </tr>
+                {% endfor %}
+                {% for i in range(6 - document.items|length) %}
+                {% if i >= 0 %}
+                <tr class="empty-row">
+                    <td>&nbsp;</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- ===== SUMMARY: Amount in words (left) + Totals (right) ===== -->
+        <div class="doc-print-summary">
+            <div class="doc-print-notes">
+                {% if document.notes %}
+                <div class="notes-label">หมายเหตุ:</div>
+                <div>{{ document.notes }}</div>
+                {% endif %}
+            </div>
+            <div class="doc-print-totals">
+                <div class="total-row">
+                    <span class="total-label">รวมเป็นเงิน</span>
+                    <span class="total-value">{{ document.subtotal|format_number }} บาท</span>
+                </div>
+                {% if document.discount_amount > 0 %}
+                <div class="total-row">
+                    <span class="total-label">ส่วนลด {{ document.discount_percent }}%</span>
+                    <span class="total-value">-{{ document.discount_amount|format_number }} บาท</span>
+                </div>
+                <div class="total-row">
+                    <span class="total-label">ราคาหลังหักส่วนลด</span>
+                    <span class="total-value">{{ document.after_discount|format_number }} บาท</span>
+                </div>
+                {% endif %}
+                {% if document.vat_enabled %}
+                <div class="total-row">
+                    <span class="total-label">ภาษีมูลค่าเพิ่ม 7%</span>
+                    <span class="total-value">{{ document.vat_amount|format_number }} บาท</span>
+                </div>
+                {% endif %}
+                <div class="total-row grand">
+                    <span class="total-label" style="color: {{ doc_info.color }};">จำนวนเงินรวมทั้งสิ้น</span>
+                    <span class="total-value" style="color: {{ doc_info.color }};">{{ document.grand_total|format_number
+                        }} บาท</span>
+                </div>
+                {% if document.withholding_tax_enabled %}
+                <div class="total-row">
+                    <span class="total-label">หักภาษี ณ ที่จ่าย {{ document.withholding_tax_percent }}%</span>
+                    <span class="total-value">-{{ document.withholding_tax_amount|format_number }} บาท</span>
+                </div>
+                <div class="total-row grand">
+                    <span class="total-label" style="color: {{ doc_info.color }};">ยอดชำระสุทธิ</span>
+                    <span class="total-value" style="color: {{ doc_info.color }};">{{ document.net_total|format_number
+                        }} บาท</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ===== AMOUNT IN WORDS ===== -->
+        <div class="doc-print-baht-text">
+            ({{ document.grand_total|baht_text }})
+        </div>
+
+        <!-- ===== SIGNATURES ===== -->
+        <div class="doc-print-signatures">
+            <!-- Customer Signature (Left) -->
+            <div class="signature-block">
+                <div class="sig-company-name">
+                    ในนาม {{ document.customer.name if document.customer else '' }}
+                </div>
+                <div class="signature-space"></div>
+                <div class="signature-lines">
+                    <div class="sig-line-row">
+                        <div class="sig-line-item">
+                            <div class="sig-line"></div>
+                            <span class="sig-role">ผู้สั่งซื้อสินค้า</span>
+                        </div>
+                        <div class="sig-line-date">
+                            <div class="sig-line"></div>
+                            <span class="sig-date">วันที่</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Company Signature (Right) -->
+            <div class="signature-block">
+                <div class="sig-company-name">
+                    ในนาม {{ company.name if company else 'บริษัทของคุณ' }}
+                    {% if company and company.branch %} {{ company.branch }}{% endif %}
+                </div>
+                <div class="signature-space"></div>
+                <div class="signature-lines">
+                    <div class="sig-line-row">
+                        <div class="sig-line-item">
+                            {% if company and company.signature_path %}
+                            <div class="sig-image-container"
+                                style="height:60px; display:flex; align-items:flex-end; justify-content:center;">
+                                <img src="{{ company.signature_path }}" alt="Signature"
+                                    style="max-height:100%; max-width:100%;">
+                            </div>
+                            <div class="sig-line" style="margin-top:5px;"></div>
+                            {% else %}
+                            <div class="sig-line" style="height:60px; margin-top:0; border-bottom:1px solid #000;">
+                            </div>
+                            {% endif %}
+                            <span class="sig-role">ผู้อนุมัติ</span>
+                        </div>
+                        <div class="sig-line-date">
+                            <div class="sig-line"></div>
+                            <span class="sig-date">วันที่</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

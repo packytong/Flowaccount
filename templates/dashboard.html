@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}แดชบอร์ด{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="ri-dashboard-3-line"></i> แดชบอร์ด</h1>
+</div>
+
+<!-- Stats Grid -->
+<div class="dashboard-grid">
+    {% for type_key, stat in stats.items() %}
+    <a href="{{ url_for('document_list', doc_type=type_key) }}" class="stat-card"
+        style="--card-color: {{ stat.color }}">
+        <div
+            style="position:absolute;top:0;left:0;right:0;height:3px;background:{{ stat.color }};border-radius:16px 16px 0 0;">
+        </div>
+        <div class="stat-icon" style="background: {{ stat.color }}20; color: {{ stat.color }}">
+            <i class="{{ stat.icon }}"></i>
+        </div>
+        <div class="stat-count">{{ stat.count }}</div>
+        <div class="stat-label">{{ stat.name_th }}</div>
+        <div class="stat-total">ยอดรวม: <span>฿{{ stat.total|format_number }}</span></div>
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Recent Documents -->
+<div class="recent-section">
+    <h2><i class="ri-time-line"></i> เอกสารล่าสุด</h2>
+    {% if recent_docs %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>เลขที่เอกสาร</th>
+                    <th>ประเภท</th>
+                    <th>ลูกค้า</th>
+                    <th>วันที่</th>
+                    <th>จำนวนเงิน</th>
+                    <th>สถานะ</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in recent_docs %}
+                <tr>
+                    <td style="font-weight:600; color: var(--accent-blue);">{{ doc.doc_number }}</td>
+                    <td>
+                        <span style="color: {{ doc_types[doc.doc_type].color }}">
+                            <i class="{{ doc_types[doc.doc_type].icon }}"></i>
+                            {{ doc_types[doc.doc_type].name_th }}
+                        </span>
+                    </td>
+                    <td>{{ doc.customer.name if doc.customer else '-' }}</td>
+                    <td>{{ doc.doc_date|thai_date }}</td>
+                    <td style="font-weight:600;">฿{{ doc.grand_total|format_number }}</td>
+                    <td>
+                        <span class="status-badge status-{{ doc.status }}">
+                            {{ 'ร่าง' if doc.status == 'draft' else 'บันทึกแล้ว' }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('document_view', doc_type=doc.doc_type, doc_id=doc.id) }}"
+                            class="btn btn-ghost btn-sm">
+                            <i class="ri-eye-line"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state card">
+        <i class="ri-file-add-line"></i>
+        <h3>ยังไม่มีเอกสาร</h3>
+        <p>เริ่มสร้างเอกสารแรกของคุณได้เลย</p>
+        <a href="{{ url_for('document_new', doc_type='quotation') }}" class="btn btn-primary">
+            <i class="ri-add-line"></i> สร้างใบเสนอราคา
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ doc_info.name_th }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <i class="{{ doc_info.icon }}" style="color: {{ doc_info.color }}"></i>
+        {{ doc_info.name_th }}
+    </h1>
+    <a href="{{ url_for('document_new', doc_type=doc_type) }}" class="btn btn-primary">
+        <i class="ri-add-line"></i> สร้าง{{ doc_info.name_th }}
+    </a>
+</div>
+
+<!-- Filter Bar -->
+<form class="filter-bar" method="GET">
+    <div class="search-input-wrapper">
+        <i class="ri-search-line"></i>
+        <input type="text" name="search" value="{{ search }}" placeholder="ค้นหาเลขที่เอกสาร หรือชื่อลูกค้า...">
+    </div>
+    <button type="submit" class="btn btn-secondary">
+        <i class="ri-search-line"></i> ค้นหา
+    </button>
+</form>
+
+<!-- Documents Table -->
+{% if documents.items %}
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>เลขที่เอกสาร</th>
+                <th>ลูกค้า</th>
+                <th>วันที่</th>
+                <th>ครบกำหนด</th>
+                <th>จำนวนเงิน</th>
+                <th>สถานะ</th>
+                <th style="width:180px;">การดำเนินการ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents.items %}
+            <tr>
+                <td class="doc-number-cell">
+                    <a href="{{ url_for('document_edit', doc_type=doc_type, doc_id=doc.id) }}" class="doc-num-link">{{
+                        doc.doc_number }}</a>
+                    {% if related_map.get(doc.id) %}
+                    <div class="related-docs-row">
+                        {% for rel in related_map[doc.id] %}
+                        <a href="{{ url_for('document_view', doc_type=rel.doc_type, doc_id=rel.id) }}"
+                            class="related-doc-tag" title="{{ rel.name_th }}: {{ rel.doc_number }}"
+                            style="color:{{ rel.color }}; border-color:{{ rel.color }}40; background:{{ rel.color }}12;">
+                            <i class="{{ rel.icon }}"></i>
+                            {{ rel.doc_number }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td>{{ doc.customer.name if doc.customer else '-' }}</td>
+                <td>{{ doc.doc_date|thai_date }}</td>
+                <td>{{ doc.due_date|thai_date }}</td>
+                <td style="font-weight:600;">฿{{ doc.grand_total|format_number }}</td>
+                <td>
+                    <div class="status-dropdown-wrapper" id="statusWrapper_{{ doc.id }}">
+                        {% set st = doc_statuses.get(doc.status, doc_statuses['draft']) %}
+                        <button type="button" class="status-badge-btn"
+                            style="background:{{ st.bg }}; color:{{ st.color }}; border:1px solid {{ st.color }}30;"
+                            onclick="toggleStatusDropdown({{ doc.id }}, event)">
+                            {{ st.name_th }} <i class="ri-arrow-down-s-line"></i>
+                        </button>
+                        <div class="status-dropdown" id="statusDropdown_{{ doc.id }}">
+                            {% for key, status in doc_statuses.items() %}
+                            {% if key != 'converted' %}
+                            <div class="status-dropdown-item {% if doc.status == key %}active{% endif %}"
+                                onclick="updateStatus({{ doc.id }}, '{{ key }}', event)"
+                                style="--item-color: {{ status.color }};">
+                                <span class="status-dot" style="background:{{ status.color }};"></span>
+                                {{ status.name_th }}
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                            {% set next_map = {'quotation':'billing', 'billing':'tax_invoice', 'tax_invoice':'receipt'}
+                            %}
+                            {% if doc_type in next_map and doc.status != 'converted' %}
+                            <div class="status-dropdown-divider"></div>
+                            <a href="{{ url_for('document_convert', doc_type=doc_type, doc_id=doc.id, target_type=next_map[doc_type]) }}"
+                                class="status-dropdown-item convert-item"
+                                onclick="return confirm('สร้าง{{ doc_types[next_map[doc_type]].name_th }}จาก {{ doc.doc_number }} ?')">
+                                <i class="ri-arrow-right-circle-line"></i>
+                                สร้าง{{ doc_types[next_map[doc_type]].name_th }}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <a href="{{ url_for('document_view', doc_type=doc_type, doc_id=doc.id) }}"
+                            class="btn btn-ghost btn-sm" title="ดู">
+                            <i class="ri-eye-line"></i>
+                        </a>
+                        <a href="{{ url_for('document_edit', doc_type=doc_type, doc_id=doc.id) }}"
+                            class="btn btn-ghost btn-sm" title="แก้ไข">
+                            <i class="ri-edit-line"></i>
+                        </a>
+                        {% set next_map = {'quotation':'billing', 'billing':'tax_invoice', 'tax_invoice':'receipt'} %}
+                        {% if doc_type in next_map and doc.status != 'converted' %}
+                        <a href="{{ url_for('document_convert', doc_type=doc_type, doc_id=doc.id, target_type=next_map[doc_type]) }}"
+                            class="btn btn-ghost btn-sm" title="สร้าง{{ doc_types[next_map[doc_type]].name_th }}"
+                            onclick="return confirm('สร้าง{{ doc_types[next_map[doc_type]].name_th }}จาก {{ doc.doc_number }} ?')"
+                            style="color: {{ doc_types[next_map[doc_type]].color }};">
+                            <i class="{{ doc_types[next_map[doc_type]].icon }}"></i>
+                        </a>
+                        {% endif %}
+                        <button class="btn btn-ghost btn-sm" title="ลบ"
+                            onclick="deleteDocument({{ doc.id }}, '{{ doc.doc_number }}')">
+                            <i class="ri-delete-bin-line" style="color:var(--accent-red)"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if documents.pages > 1 %}
+<div class="pagination">
+    {% if documents.has_prev %}
+    <a href="?page={{ documents.prev_num }}&search={{ search }}"><i class="ri-arrow-left-s-line"></i></a>
+    {% endif %}
+    {% for p in documents.iter_pages() %}
+    {% if p %}
+    <a href="?page={{ p }}&search={{ search }}" class="{% if p == documents.page %}active{% endif %}">{{ p }}</a>
+    {% else %}
+    <span>...</span>
+    {% endif %}
+    {% endfor %}
+    {% if documents.has_next %}
+    <a href="?page={{ documents.next_num }}&search={{ search }}"><i class="ri-arrow-right-s-line"></i></a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state card">
+    <i class="{{ doc_info.icon }}" style="color: {{ doc_info.color }}"></i>
+    <h3>ยังไม่มี{{ doc_info.name_th }}</h3>
+    <p>เริ่มสร้าง{{ doc_info.name_th }}แรกของคุณ</p>
+    <a href="{{ url_for('document_new', doc_type=doc_type) }}" class="btn btn-primary">
+        <i class="ri-add-line"></i> สร้าง{{ doc_info.name_th }}
+    </a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function deleteDocument(id, docNumber) {
+        if (!confirm('คุณต้องการลบเอกสาร ' + docNumber + ' หรือไม่?')) return;
+        fetch('/api/documents/' + id, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert('เกิดข้อผิดพลาด: ' + data.message);
+            })
+            .catch(() => alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'));
+    }
+
+    function toggleStatusDropdown(docId, event) {
+        event.stopPropagation();
+        // Close all other dropdowns first
+        document.querySelectorAll('.status-dropdown.show').forEach(d => {
+            if (d.id !== 'statusDropdown_' + docId) {
+                d.classList.remove('show');
+            }
+        });
+        const dropdown = document.getElementById('statusDropdown_' + docId);
+        dropdown.classList.toggle('show');
+    }
+
+    function updateStatus(docId, newStatus, event) {
+        event.stopPropagation();
+
+        // Close dropdown immediately
+        const wrapper = document.getElementById('statusWrapper_' + docId);
+        wrapper.querySelector('.status-dropdown').classList.remove('show');
+
+        fetch('/api/documents/' + docId + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the badge button
+                    const btn = wrapper.querySelector('.status-badge-btn');
+                    btn.textContent = data.name_th + ' ';
+                    const arrow = document.createElement('i');
+                    arrow.className = 'ri-arrow-down-s-line';
+                    btn.appendChild(arrow);
+                    btn.style.background = data.bg;
+                    btn.style.color = data.color;
+                    btn.style.borderColor = data.color + '30';
+
+                    // Update active state in dropdown
+                    wrapper.querySelectorAll('.status-dropdown-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + data.message);
+                }
+            })
+            .catch(() => alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'));
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.status-dropdown-wrapper')) {
+            document.querySelectorAll('.status-dropdown.show').forEach(d => {
+                d.classList.remove('show');
+            });
+        }
+    });
+</script>
+{% endblock %}

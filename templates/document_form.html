@@ -1,0 +1,391 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if document %}แก้ไข{% else %}สร้าง{% endif %}{{ doc_info.name_th }}{% endblock %}
+
+{% block content %}
+<form method="POST" id="documentForm">
+    <!-- ========== HEADER BAR ========== -->
+    <div class="doc-form-header">
+        <div class="doc-title">
+            <div>
+                <div class="doc-type-label">
+                    <i class="{{ doc_info.icon }}" style="color: {{ doc_info.color }}"></i>
+                    {% if document %}แก้ไข{% else %}สร้าง{% endif %}{{ doc_info.name_th }}
+                </div>
+                <div class="doc-number-row">
+                    <span class="doc-number">{{ doc_number }}</span>
+                    {% if document %}
+                    {% set st = doc_statuses.get(document.status, doc_statuses['draft']) %}
+                    <span class="status-badge-inline"
+                        style="background:{{ st.bg }}; color:{{ st.color }}; border:1px solid {{ st.color }}30;">
+                        {{ st.name_th }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="doc-form-actions">
+            <a href="{{ url_for('document_list', doc_type=doc_type) }}" class="btn btn-secondary">
+                <i class="ri-arrow-left-line"></i> ดึงหน้าร่าง
+            </a>
+            <div class="save-btn-group">
+                <button type="submit" name="status" value="saved" class="btn btn-primary btn-lg">
+                    <i class="ri-save-line"></i> บันทึกเอกสาร
+                </button>
+                <div class="save-dropdown-wrapper">
+                    <button type="button" class="btn btn-primary btn-lg save-dropdown-toggle"
+                        onclick="this.parentElement.classList.toggle('open')">
+                        <i class="ri-arrow-down-s-line"></i>
+                    </button>
+                    <div class="save-dropdown-menu">
+                        <button type="submit" name="status" value="draft" class="save-dropdown-item">
+                            <i class="ri-draft-line"></i> บันทึกร่าง
+                        </button>
+                        <button type="submit" name="status" value="approved" class="save-dropdown-item">
+                            <i class="ri-check-line"></i> บันทึกและอนุมัติ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="hidden" name="doc_number" value="{{ doc_number }}">
+
+    <!-- ========== TOP SECTION: Customer (left) + Actions + Totals/Dates (right) ========== -->
+    <div class="doc-form-body">
+        <!-- LEFT: Customer Section -->
+        <div class="customer-section">
+            <div class="form-group customer-autocomplete">
+                <label class="form-label">ชื่อลูกค้า</label>
+                <input type="hidden" name="customer_id" id="customerId"
+                    value="{{ document.customer_id if document and document.customer_id else '' }}">
+                <input type="text" class="form-control" id="customerName" name="customer_name"
+                    placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา หรือเพิ่มใหม่"
+                    value="{{ document.customer.name if document and document.customer else '' }}" autocomplete="off">
+                <div class="customer-dropdown" id="customerDropdown"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">ที่อยู่</label>
+                <textarea class="form-control" name="customer_address" rows="3"
+                    placeholder="รายละเอียดที่อยู่">{{ document.customer.address if document and document.customer else '' }}</textarea>
+            </div>
+            <div class="form-row-2col">
+                <div class="form-group">
+                    <label class="form-label">รหัสไปรษณีย์</label>
+                    <input type="text" class="form-control" name="customer_zipcode" placeholder="รหัสไปรษณีย์"
+                        value="{{ document.customer.zipcode if document and document.customer and document.customer.zipcode else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">เลขประจำตัวผู้เสียภาษี</label>
+                    <input type="text" class="form-control" name="customer_tax_id" placeholder="เลขประจำตัวผู้เสียภาษี"
+                        value="{{ document.customer.tax_id if document and document.customer else '' }}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">สำนักงาน/สาขา</label>
+                <input type="text" class="form-control" name="customer_branch" placeholder="สำนักงานใหญ่"
+                    value="{{ document.customer.branch if document and document.customer else 'สำนักงานใหญ่' }}">
+            </div>
+
+            <!-- Action Icons (share, print, copy, more) -->
+            <div class="action-icons">
+                <button type="button" class="action-icon-btn" title="แชร์">
+                    <i class="ri-share-line"></i>
+                    <span>แชร์</span>
+                </button>
+                <button type="button" class="action-icon-btn" onclick="window.print()" title="พิมพ์">
+                    <i class="ri-printer-line"></i>
+                    <span>พิมพ์</span>
+                </button>
+                <button type="button" class="action-icon-btn" title="คัดลอก">
+                    <i class="ri-file-copy-line"></i>
+                    <span>คัดลอก</span>
+                </button>
+                <button type="button" class="action-icon-btn" title="เพิ่มเติม">
+                    <i class="ri-more-2-line"></i>
+                    <span>เพิ่มเติม</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- RIGHT: Grand Total + Dates -->
+        <div class="totals-section">
+            <div class="grand-total-display">
+                <div class="grand-total-label">จำนวนเงินรวมทั้งสิ้น</div>
+                <div class="grand-total-amount" id="displayGrandTotal">฿{{ document.grand_total|format_number if
+                    document else '0.00' }}</div>
+            </div>
+            <div class="dates-grid">
+                <div class="form-group">
+                    <label class="form-label">วันที่:</label>
+                    <input type="date" class="form-control" name="doc_date" id="docDate"
+                        value="{{ document.doc_date.strftime('%Y-%m-%d') if document and document.doc_date else today.strftime('%Y-%m-%d') }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">เครดิต (วัน):</label>
+                    <select class="form-control" name="credit_days" id="creditDays" onchange="updateDueDate()">
+                        {% for days in [0, 7, 15, 30, 45, 60, 90] %}
+                        <option value="{{ days }}" {% if (document and document.credit_days==days) or (not document and
+                            days==30) %}selected{% endif %}>
+                            {{ days }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ครบกำหนด:</label>
+                    <input type="date" class="form-control" name="due_date" id="dueDate"
+                        value="{{ document.due_date.strftime('%Y-%m-%d') if document and document.due_date else today.strftime('%Y-%m-%d') }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">พนักงานขาย:</label>
+                    <input type="text" class="form-control" name="salesperson" placeholder="ชื่อพนักงานขาย"
+                        value="{{ document.salesperson if document else '' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">สกุลเงิน:</label>
+                    <div class="currency-display">🇹🇭 THB - ไทย</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== REFERENCE ROW ========== -->
+    <div class="reference-row">
+        <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">โปรเจค:</label>
+            <input type="text" class="form-control" name="project" placeholder="ชื่อโปรเจค"
+                value="{{ document.project if document else '' }}">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">เลขที่อ้างอิง:</label>
+            <input type="text" class="form-control" name="reference_number" placeholder="เลขที่อ้างอิง"
+                value="{{ document.reference_number if document else '' }}">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">ราคาสินค้า:</label>
+            <select class="form-control" name="price_type">
+                <option value="ราคาไม่รวมภาษี" {% if document and document.price_type=='ราคาไม่รวมภาษี' %}selected{%
+                    endif %}>ราคาไม่รวมภาษี</option>
+                <option value="ราคารวมภาษี" {% if document and document.price_type=='ราคารวมภาษี' %}selected{% endif %}>
+                    ราคารวมภาษี</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- ========== ITEMS SECTION ========== -->
+    <div class="items-section">
+        <div class="section-title">รายละเอียด</div>
+        <table class="items-table" id="itemsTable">
+            <colgroup>
+                <col style="width:60px;">
+                <col>
+                <col style="width:100px;">
+                <col style="width:80px;">
+                <col style="width:130px;">
+                <col style="width:130px;">
+                <col style="width:40px;">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>ลำดับ</th>
+                    <th>ชื่อสินค้า / รายละเอียด</th>
+                    <th>จำนวน</th>
+                    <th>หน่วย</th>
+                    <th>ราคาต่อหน่วย</th>
+                    <th>ราคารวม</th>
+                    <th class="row-delete"></th>
+                </tr>
+            </thead>
+            <tbody id="itemsBody">
+                {% if document and document.items %}
+                {% for item in document.items %}
+                <tr class="item-row">
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <input type="text" name="item_description[]" value="{{ item.description }}"
+                            placeholder="ชื่อสินค้า/บริการ" class="form-control mb-1">
+                        <textarea name="item_details[]" class="form-control item-details-input"
+                            placeholder="รายละเอียด (กด Shift+Enter เพื่อขึ้นบรรทัดใหม่)"
+                            rows="1">{{ item.details or '' }}</textarea>
+                    </td>
+                    <td><input type="number" name="item_quantity[]" value="{{ item.quantity }}" step="any" min="0"
+                            class="qty-input" onchange="calcRow(this)"></td>
+                    <td><input type="text" name="item_unit[]" value="{{ item.unit }}" placeholder="หน่วย"></td>
+                    <td><input type="number" name="item_unit_price[]" value="{{ item.unit_price }}" step="any" min="0"
+                            class="price-input" onchange="calcRow(this)"></td>
+                    <td class="amount-cell">
+                        <span class="row-amount">{{ item.amount|format_number }}</span>
+                        <input type="hidden" name="item_amount[]" value="{{ item.amount }}">
+                    </td>
+                    <td class="row-delete"><button type="button" onclick="removeRow(this)"><i
+                                class="ri-close-line"></i></button></td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                {% for i in range(3) %}
+                <tr class="item-row">
+                    <td>{{ i + 1 }}</td>
+                    <td>
+                        <input type="text" name="item_description[]" value="" placeholder="ชื่อสินค้า/บริการ"
+                            class="form-control mb-1">
+                        <textarea name="item_details[]" class="form-control item-details-input"
+                            placeholder="รายละเอียด (กด Shift+Enter เพื่อขึ้นบรรทัดใหม่)" rows="1"></textarea>
+                    </td>
+                    <td><input type="number" name="item_quantity[]" value="" step="any" min="0" class="qty-input"
+                            onchange="calcRow(this)"></td>
+                    <td><input type="text" name="item_unit[]" value="" placeholder="หน่วย"></td>
+                    <td><input type="number" name="item_unit_price[]" value="" step="any" min="0" class="price-input"
+                            onchange="calcRow(this)"></td>
+                    <td class="amount-cell">
+                        <span class="row-amount">0.00</span>
+                        <input type="hidden" name="item_amount[]" value="0">
+                    </td>
+                    <td class="row-delete"><button type="button" onclick="removeRow(this)"><i
+                                class="ri-close-line"></i></button></td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+        <button type="button" class="add-row-btn" onclick="addRow()">
+            <i class="ri-add-line"></i> เพิ่มรายการ
+        </button>
+    </div>
+
+    <!-- ========== BOTTOM: Notes (left) + Summary (right) ========== -->
+    <div class="doc-form-bottom">
+        <!-- LEFT: Notes -->
+        <div class="notes-section">
+            <div class="form-group">
+                <label class="form-check">
+                    <input type="checkbox" checked disabled>
+                    <span>ลายเซ็นอิเล็กทรอนิกส์และตราบาง</span>
+                </label>
+            </div>
+            <div class="notes-columns">
+                <div class="form-group">
+                    <label class="form-label">หมายเหตุ:</label>
+                    <textarea class="form-control" name="notes" rows="4"
+                        placeholder="หมายเหตุถึงลูกค้า">{{ document.notes if document else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">โน้ตภายในบริษัท:</label>
+                    <textarea class="form-control" name="internal_notes" rows="4"
+                        placeholder="โน้ตสำหรับใช้ภายใน (ลูกค้าจะไม่เห็น)">{{ document.internal_notes if document else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Summary/Totals -->
+        <div class="summary-section">
+            <div class="summary-row">
+                <span class="summary-label">รวมเป็นเงิน</span>
+                <span class="summary-value" id="subtotalDisplay">0.00</span>
+                <input type="hidden" name="subtotal" id="subtotal" value="{{ document.subtotal if document else 0 }}">
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">ส่วนลด</span>
+                <div class="discount-input-group">
+                    <input type="number" name="discount_percent" id="discountPercent"
+                        value="{{ document.discount_percent if document else 0 }}" step="any" min="0" max="100"
+                        onchange="calcTotals()">
+                    <span>%</span>
+                </div>
+                <span class="summary-value edit-icon-value">
+                    <i class="ri-pencil-line"></i>
+                    <span id="discountDisplay">0.00</span>
+                </span>
+                <input type="hidden" name="discount_amount" id="discountAmount"
+                    value="{{ document.discount_amount if document else 0 }}">
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">ราคาหลังหักส่วนลด</span>
+                <span class="summary-value" id="afterDiscountDisplay">0.00</span>
+                <input type="hidden" name="after_discount" id="afterDiscount"
+                    value="{{ document.after_discount if document else 0 }}">
+            </div>
+            <div class="summary-row">
+                <label class="form-check summary-label">
+                    <input type="checkbox" name="vat_enabled" id="vatEnabled" onchange="calcTotals()" {% if not document
+                        or document.vat_enabled %}checked{% endif %}>
+                    <span>ภาษีมูลค่าเพิ่ม 7%</span>
+                </label>
+                <span class="summary-value" id="vatDisplay">0.00</span>
+                <input type="hidden" name="vat_amount" id="vatAmount"
+                    value="{{ document.vat_amount if document else 0 }}">
+            </div>
+            <div class="summary-row grand-total">
+                <span class="summary-label">จำนวนเงินรวมทั้งสิ้น</span>
+                <span class="summary-value" id="grandTotalDisplay">0.00</span>
+                <input type="hidden" name="grand_total" id="grandTotal"
+                    value="{{ document.grand_total if document else 0 }}">
+            </div>
+            <div class="summary-row" style="border-bottom:none;">
+                <label class="form-check summary-label">
+                    <input type="checkbox" name="withholding_tax_enabled" id="whtEnabled" onchange="calcTotals()" {% if
+                        (not document) or (document and document.withholding_tax_enabled) %}checked{% endif %}>
+                    <span>หักภาษี ณ ที่จ่าย</span>
+                </label>
+                <div class="discount-input-group">
+                    <input type="number" name="withholding_tax_percent" id="whtPercent"
+                        value="{{ document.withholding_tax_percent if document else 7 }}" step="any" min="0" max="100"
+                        onchange="calcTotals()">
+                    <span>%</span>
+                </div>
+                <span class="summary-value" id="whtDisplay">0.00</span>
+                <input type="hidden" name="withholding_tax_amount" id="whtAmount"
+                    value="{{ document.withholding_tax_amount if document else 0 }}">
+            </div>
+            <div class="summary-row" id="netTotalRow" style="display:none; border-bottom:none;">
+                <span class="summary-label" style="font-weight:600;">ยอดชำระสุทธิ</span>
+                <span class="summary-value" id="netTotalDisplay" style="color:var(--accent-green);">0.00</span>
+                <input type="hidden" name="net_total" id="netTotal" value="{{ document.net_total if document else 0 }}">
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+    function addRow() {
+        const tbody = document.getElementById('itemsBody');
+        const rowCount = tbody.querySelectorAll('tr').length + 1;
+        const tr = document.createElement('tr');
+        tr.className = 'item-row';
+        tr.innerHTML = `
+            <td>${rowCount}</td>
+            <td>
+                <input type="text" name="item_description[]" value="" placeholder="ชื่อสินค้า/บริการ" class="form-control mb-1">
+                <textarea name="item_details[]" class="form-control item-details-input" 
+                    placeholder="รายละเอียด (กด Shift+Enter เพื่อขึ้นบรรทัดใหม่)" rows="1"></textarea>
+            </td>
+            <td><input type="number" name="item_quantity[]" value="" step="any" min="0" class="qty-input" onchange="calcRow(this)"></td>
+            <td><input type="text" name="item_unit[]" value="" placeholder="หน่วย"></td>
+            <td><input type="number" name="item_unit_price[]" value="" step="any" min="0" class="price-input" onchange="calcRow(this)"></td>
+            <td class="amount-cell">
+                <span class="row-amount">0.00</span>
+                <input type="hidden" name="item_amount[]" value="0">
+            </td>
+            <td class="row-delete"><button type="button" onclick="removeRow(this)"><i class="ri-close-line"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+
+    // Initialize calculations on load
+    document.addEventListener('DOMContentLoaded', function () {
+        calcTotals();
+        initCustomerAutocomplete();
+        updateDueDate();
+    });
+
+    // Close save dropdown when clicking outside
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.save-dropdown-wrapper')) {
+            document.querySelectorAll('.save-dropdown-wrapper.open').forEach(d => d.classList.remove('open'));
+        }
+    });
+</script>
+{% endblock %}
