@@ -68,6 +68,12 @@ DOC_TYPES = {
         'icon': 'ri-money-dollar-circle-line',
         'color': '#8b5cf6',
     },
+    'delivery_note': {
+        'prefix': 'DO',
+        'name_th': 'ใบส่งสินค้า',
+        'icon': 'ri-truck-line',
+        'color': '#f97316',
+    },
 }
 
 # Document status constants

@@ -3,6 +3,36 @@
 {% block title %}{% if document %}แก้ไข{% else %}สร้าง{% endif %}{{ doc_info.name_th }}{% endblock %}
 
 {% block content %}
+<style>
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        max-height: 200px;
+        overflow-y: auto;
+        display: none;
+    }
+
+    .autocomplete-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+        background-color: #f3f4f6;
+    }
+</style>
 <form method="POST" id="documentForm">
     <!-- ========== HEADER BAR ========== -->
     <div class="doc-form-header">
@@ -63,8 +93,9 @@
                 <div style="position:relative;">
                     <input type="text" class="form-control" name="customer_name" id="customerName"
                         value="{{ document.customer.name if document and document.customer else '' }}"
-                        placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." list="customerList" autocomplete="off">
-                    <datalist id="customerList"></datalist>
+                        placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." autocomplete="off">
+                    <!-- Custom Dropdown -->
+                    <div id="customerDropdown" class="autocomplete-dropdown"></div>
                 </div>
             </div>
             <div class="form-group">
@@ -353,41 +384,71 @@
 <script>
 
     function initCustomerAutocomplete() {
-        console.log('Initializing customer autocomplete...');
+        console.log('Initializing custom autocomplete...');
+        const customerInput = document.getElementById('customerName');
+        const dropdown = document.getElementById('customerDropdown');
+        if (!customerInput || !dropdown) return;
+
+        let customers = [];
+
+        // Fetch data
         fetch('/api/customers')
             .then(response => response.json())
             .then(data => {
-                const datalist = document.getElementById('customerList');
-                if (datalist) {
-                    datalist.innerHTML = '';
-                    data.forEach(customer => {
-                        const option = document.createElement('option');
-                        option.value = customer.name;
-                        datalist.appendChild(option);
-                    });
-                }
-
-                const customerInput = document.getElementById('customerName');
-                if (customerInput) {
-                    customerInput.addEventListener('input', function (e) {
-                        const val = this.value;
-                        const customer = data.find(c => c.name === val);
-                        if (customer) {
-                            if (document.getElementsByName('customer_address')[0]) document.getElementsByName('customer_address')[0].value = customer.address || '';
-                            if (document.getElementsByName('customer_tax_id')[0]) document.getElementsByName('customer_tax_id')[0].value = customer.tax_id || '';
-                            if (document.getElementsByName('customer_branch')[0]) document.getElementsByName('customer_branch')[0].value = customer.branch || 'สำนักงานใหญ่';
-                            if (document.getElementsByName('customer_phone')[0]) document.getElementsByName('customer_phone')[0].value = customer.phone || '';
-                            if (document.getElementsByName('customer_zipcode')[0]) document.getElementsByName('customer_zipcode')[0].value = customer.zipcode || ''; // if you have zipcode
-                        }
-                    });
-                    // Force check on load if value exists
-                    if (customerInput.value) {
-                        const customer = data.find(c => c.name === customerInput.value);
-                        // Optional: could auto-fill generic fields if they are empty
-                    }
-                }
+                customers = data;
             })
             .catch(err => console.error('Error fetching customers:', err));
+
+        // Render dropdown
+        function renderDropdown(filterText = '') {
+            dropdown.innerHTML = '';
+            const filtered = customers.filter(c =>
+                c.name.toLowerCase().includes(filterText.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            filtered.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = c.name;
+                div.onclick = function () {
+                    selectCustomer(c);
+                };
+                dropdown.appendChild(div);
+            });
+            dropdown.style.display = 'block';
+        }
+
+        function selectCustomer(customer) {
+            customerInput.value = customer.name;
+            dropdown.style.display = 'none';
+
+            if (document.getElementsByName('customer_address')[0]) document.getElementsByName('customer_address')[0].value = customer.address || '';
+            if (document.getElementsByName('customer_tax_id')[0]) document.getElementsByName('customer_tax_id')[0].value = customer.tax_id || '';
+            if (document.getElementsByName('customer_branch')[0]) document.getElementsByName('customer_branch')[0].value = customer.branch || 'สำนักงานใหญ่';
+            if (document.getElementsByName('customer_phone')[0]) document.getElementsByName('customer_phone')[0].value = customer.phone || '';
+            if (document.getElementsByName('customer_zipcode')[0]) document.getElementsByName('customer_zipcode')[0].value = customer.zipcode || '';
+        }
+
+        // Event listeners
+        customerInput.addEventListener('input', function () {
+            renderDropdown(this.value);
+        });
+
+        customerInput.addEventListener('focus', function () {
+            renderDropdown(this.value);
+        });
+
+        // Close when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!customerInput.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
     }
 
     function addRow() {

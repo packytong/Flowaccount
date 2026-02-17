@@ -406,8 +406,60 @@ def document_convert(doc_type, doc_id, target_type):
         # Mark source as converted
         source.status = 'converted'
 
+        msg = f'สร้าง{DOC_TYPES[target_type]["name_th"]} {new_doc.doc_number} จาก {source.doc_number} เรียบร้อย'
+
+        # 2. Special Case: Quotation -> Billing Note => Auto-create Delivery Note
+        if doc_type == 'quotation' and target_type == 'billing':
+            # Check if DV already exists (to avoid duplicates if re-clicking)
+            existing_dv = Document.query.filter_by(source_document_id=source.id, doc_type='delivery_note').first()
+            if not existing_dv:
+                dv_doc = Document()
+                dv_doc.doc_type = 'delivery_note'
+                dv_doc.doc_number = generate_doc_number('delivery_note')
+                dv_doc.status = 'saved'
+                dv_doc.customer_id = source.customer_id
+                dv_doc.source_document_id = source.id  # Sibling to Billing Note
+                dv_doc.doc_date = date.today()
+                dv_doc.credit_days = source.credit_days
+                dv_doc.due_date = date.today() + timedelta(days=source.credit_days)
+                dv_doc.reference_number = source.doc_number
+                dv_doc.salesperson = source.salesperson
+                dv_doc.project = source.project
+                dv_doc.price_type = source.price_type
+                dv_doc.subtotal = source.subtotal
+                dv_doc.discount_percent = source.discount_percent
+                dv_doc.discount_amount = source.discount_amount
+                dv_doc.after_discount = source.after_discount
+                dv_doc.vat_enabled = source.vat_enabled
+                dv_doc.vat_amount = source.vat_amount
+                dv_doc.grand_total = source.grand_total
+                dv_doc.withholding_tax_enabled = source.withholding_tax_enabled
+                dv_doc.withholding_tax_percent = source.withholding_tax_percent
+                dv_doc.withholding_tax_amount = source.withholding_tax_amount
+                dv_doc.net_total = source.net_total
+                dv_doc.notes = source.notes
+                dv_doc.internal_notes = source.internal_notes
+
+                db.session.add(dv_doc)
+                db.session.flush()
+
+                for item in source.items:
+                    dv_item = DocumentItem(
+                        document_id=dv_doc.id,
+                        order=item.order,
+                        description=item.description,
+                        details=item.details,
+                        quantity=item.quantity,
+                        unit=item.unit,
+                        unit_price=item.unit_price,
+                        amount=item.amount,
+                    )
+                    db.session.add(dv_item)
+                
+                msg += f' และสร้างใบส่งสินค้า {dv_doc.doc_number} แล้ว'
+
         db.session.commit()
-        flash(f'สร้าง{DOC_TYPES[target_type]["name_th"]} {new_doc.doc_number} จาก {source.doc_number} เรียบร้อย', 'success')
+        flash(msg, 'success')
         return redirect(url_for('document_view', doc_type=target_type, doc_id=new_doc.id))
 
     except Exception as e:
@@ -607,7 +659,7 @@ def duplicate_document(doc_id):
         
     db.session.commit()
     flash(f'สร้างเอกสารซ้ำเรียบร้อยแล้ว (เลขที่ {new_doc.doc_number})', 'success')
-    return redirect(url_for('document_edit', doc_id=new_doc.id))
+    return redirect(url_for('document_edit', doc_type=new_doc.doc_type, doc_id=new_doc.id))
 
 
 @app.route('/api/customers')
