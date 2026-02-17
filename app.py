@@ -552,6 +552,70 @@ def baht_text(value):
     return text
 
 
+@app.route('/document/<int:doc_id>/duplicate')
+def duplicate_document(doc_id):
+    original_doc = Document.query.get_or_404(doc_id)
+    
+    # Only allow duplicating quotations per user request
+    if original_doc.doc_type != 'quotation':
+        flash('สามารถสร้างซ้ำได้เฉพาะใบเสนอราคาเท่านั้น', 'error')
+        return redirect(url_for('document_view', doc_id=doc_id))
+
+    new_doc_number = generate_doc_number(original_doc.doc_type)
+    
+    new_doc = Document(
+        doc_type=original_doc.doc_type,
+        doc_number=new_doc_number,
+        status='draft',
+        customer_id=original_doc.customer_id,
+        salesperson=original_doc.salesperson,
+        project=original_doc.project,
+        price_type=original_doc.price_type,
+        doc_date=date.today(),
+        credit_days=original_doc.credit_days,
+        due_date=date.today() + timedelta(days=original_doc.credit_days),
+        reference_number=original_doc.reference_number,
+        subtotal=original_doc.subtotal,
+        discount_percent=original_doc.discount_percent,
+        discount_amount=original_doc.discount_amount,
+        after_discount=original_doc.after_discount,
+        vat_enabled=original_doc.vat_enabled,
+        vat_amount=original_doc.vat_amount,
+        grand_total=original_doc.grand_total,
+        withholding_tax_enabled=original_doc.withholding_tax_enabled,
+        withholding_tax_percent=original_doc.withholding_tax_percent,
+        withholding_tax_amount=original_doc.withholding_tax_amount,
+        net_total=original_doc.net_total
+    )
+    
+    db.session.add(new_doc)
+    db.session.flush() # Get ID
+    
+    # Clone items
+    for item in original_doc.items:
+        new_item = DocumentItem(
+            document_id=new_doc.id,
+            order=item.order,
+            description=item.description,
+            details=item.details,
+            quantity=item.quantity,
+            unit=item.unit,
+            unit_price=item.unit_price,
+            amount=item.amount
+        )
+        db.session.add(new_item)
+        
+    db.session.commit()
+    flash(f'สร้างเอกสารซ้ำเรียบร้อยแล้ว (เลขที่ {new_doc.doc_number})', 'success')
+    return redirect(url_for('document_edit', doc_id=new_doc.id))
+
+
+@app.route('/api/customers')
+def get_customers():
+    customers = Customer.query.order_by(Customer.name).all()
+    return jsonify([c.to_dict() for c in customers])
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

@@ -11,6 +11,12 @@
     <a href="{{ url_for('document_edit', doc_type=doc_type, doc_id=document.id) }}" class="btn btn-secondary">
         <i class="ri-edit-line"></i> แก้ไข
     </a>
+    {% if document.doc_type == 'quotation' %}
+    <a href="{{ url_for('duplicate_document', doc_id=document.id) }}" class="btn btn-secondary"
+        onclick="return confirm('ยืนยันการสร้างซ้ำเอกสารนี้?');">
+        <i class="ri-file-copy-line"></i> สร้างซ้ำ
+    </a>
+    {% endif %}
     <button class="btn btn-primary" onclick="window.print()">
         <i class="ri-printer-line"></i> พิมพ์ / PDF
     </button>

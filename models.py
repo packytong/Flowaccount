@@ -57,7 +57,7 @@ DOC_TYPES = {
         'color': '#f59e0b',
     },
     'tax_invoice': {
-        'prefix': 'IV',
+        'prefix': 'INV',
         'name_th': 'ใบกำกับภาษี',
         'icon': 'ri-receipt-line',
         'color': '#10b981',

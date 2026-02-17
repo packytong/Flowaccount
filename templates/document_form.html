@@ -60,10 +60,12 @@
                 <label class="form-label">ชื่อลูกค้า</label>
                 <input type="hidden" name="customer_id" id="customerId"
                     value="{{ document.customer_id if document and document.customer_id else '' }}">
-                <input type="text" class="form-control" id="customerName" name="customer_name"
-                    placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา หรือเพิ่มใหม่"
-                    value="{{ document.customer.name if document and document.customer else '' }}" autocomplete="off">
-                <div class="customer-dropdown" id="customerDropdown"></div>
+                <div style="position:relative;">
+                    <input type="text" class="form-control" name="customer_name" id="customerName"
+                        value="{{ document.customer.name if document and document.customer else '' }}"
+                        placeholder="พิมพ์ชื่อลูกค้าเพื่อค้นหา..." list="customerList" autocomplete="off">
+                    <datalist id="customerList"></datalist>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">ที่อยู่</label>
@@ -349,6 +351,44 @@
 
 {% block scripts %}
 <script>
+
+    function initCustomerAutocomplete() {
+        console.log('Initializing customer autocomplete...');
+        fetch('/api/customers')
+            .then(response => response.json())
+            .then(data => {
+                const datalist = document.getElementById('customerList');
+                if (datalist) {
+                    datalist.innerHTML = '';
+                    data.forEach(customer => {
+                        const option = document.createElement('option');
+                        option.value = customer.name;
+                        datalist.appendChild(option);
+                    });
+                }
+
+                const customerInput = document.getElementById('customerName');
+                if (customerInput) {
+                    customerInput.addEventListener('input', function (e) {
+                        const val = this.value;
+                        const customer = data.find(c => c.name === val);
+                        if (customer) {
+                            if (document.getElementsByName('customer_address')[0]) document.getElementsByName('customer_address')[0].value = customer.address || '';
+                            if (document.getElementsByName('customer_tax_id')[0]) document.getElementsByName('customer_tax_id')[0].value = customer.tax_id || '';
+                            if (document.getElementsByName('customer_branch')[0]) document.getElementsByName('customer_branch')[0].value = customer.branch || 'สำนักงานใหญ่';
+                            if (document.getElementsByName('customer_phone')[0]) document.getElementsByName('customer_phone')[0].value = customer.phone || '';
+                            if (document.getElementsByName('customer_zipcode')[0]) document.getElementsByName('customer_zipcode')[0].value = customer.zipcode || ''; // if you have zipcode
+                        }
+                    });
+                    // Force check on load if value exists
+                    if (customerInput.value) {
+                        const customer = data.find(c => c.name === customerInput.value);
+                        // Optional: could auto-fill generic fields if they are empty
+                    }
+                }
+            })
+            .catch(err => console.error('Error fetching customers:', err));
+    }
 
     function addRow() {
         const tbody = document.getElementById('itemsBody');

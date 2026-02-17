@@ -105,6 +105,12 @@
                             class="btn btn-ghost btn-sm" title="แก้ไข">
                             <i class="ri-edit-line"></i>
                         </a>
+                        {% if doc_type == 'quotation' %}
+                        <a href="{{ url_for('duplicate_document', doc_id=doc.id) }}" class="btn btn-ghost btn-sm"
+                            title="สร้างซ้ำ" onclick="return confirm('ยืนยันการสร้างซ้ำเอกสาร {{ doc.doc_number }} ?')">
+                            <i class="ri-file-copy-line"></i>
+                        </a>
+                        {% endif %}
                         {% set next_map = {'quotation':'billing', 'billing':'tax_invoice', 'tax_invoice':'receipt'} %}
                         {% if doc_type in next_map and doc.status != 'converted' %}
                         <a href="{{ url_for('document_convert', doc_type=doc_type, doc_id=doc.id, target_type=next_map[doc_type]) }}"
