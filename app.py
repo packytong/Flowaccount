@@ -3,7 +3,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_mail import Mail, Message
 from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
-from xhtml2pdf import pisa
+from playwright.sync_api import sync_playwright
 from datetime import datetime, date, timedelta
 import os
 import io
@@ -24,7 +24,7 @@ app.config['MAIL_USERNAME'] = 'pattanuan.ppcloud@gmail.com'
 # แก้ไขบนที่นี่เป็น App Password จริง ไม่ใช่รหัสผ่านปกติ
 # ??? App Password 16 ????????????? Google ????????????? (??????????????????)
 # ?????????: https://myaccount.google.com/apppasswords
-app.config['MAIL_PASSWORD'] = 'Tongza17'  # ??????????????? App Password ?????
+app.config['MAIL_PASSWORD'] = 'mfan cfti kclo nnnu'  # ??????????????? App Password ?????
 
 app.config['MAIL_DEFAULT_SENDER'] = ('FlowAccount', 'pattanuan.ppcloud@gmail.com')
 
@@ -92,7 +92,7 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         
-        if username == 'Admin' and password == 'blwe hncc xggm igyo':
+        if username == 'Admin' and password == 'Tongza17':
             user = User('Admin')
             login_user(user, remember=True)
             next_page = request.args.get('next')
@@ -413,16 +413,21 @@ def document_email(doc_type, doc_id):
             return redirect(url_for('document_email', doc_type=doc_type, doc_id=doc_id))
         
         try:
-            # Generate PDF using xhtml2pdf
+            # Generate PDF using Playwright (Chromium)
             html_content = render_template('document_pdf.html',
                                            doc_type=doc_type,
                                            doc_info=DOC_TYPES[doc_type],
                                            document=document,
                                            company=company)
             
-            pdf_buffer = io.BytesIO()
-            pisa.CreatePDF(html_content, dest=pdf_buffer)
-            pdf_buffer.seek(0)
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                page.set_content(html_content)
+                pdf_bytes = page.pdf(format='A4', print_background=True)
+                browser.close()
+            
+            pdf_buffer = io.BytesIO(pdf_bytes)
             
             # Create email
             msg = Message(
