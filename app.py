@@ -16,14 +16,16 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 # Flask-Mail Configuration
-# หมายเหตุ: ต้องใช้ Gmail App Password (ไม่ใช่รหัสผ่านปกติ)
-# สร้างได้ที่: Google Account > Security > 2-Step Verification > App passwords
+# Gmail ต้องใช้ App Password ที่สร้างจาก Google Account
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = 'pattanuan.ppcloud@gmail.com'
-app.config['MAIL_PASSWORD'] = 'Tongza17'  # TODO: เปลี่ยนเป็น Gmail App Password
+# แก้ไขบนที่นี่เป็น App Password จริง ไม่ใช่รหัสผ่านปกติ
+# ??? App Password 16 ????????????? Google ????????????? (??????????????????)
+# ?????????: https://myaccount.google.com/apppasswords
+app.config['MAIL_PASSWORD'] = 'Tongza17'  # ??????????????? App Password ?????
+
 app.config['MAIL_DEFAULT_SENDER'] = ('FlowAccount', 'pattanuan.ppcloud@gmail.com')
 
 mail = Mail(app)
@@ -90,7 +92,7 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         
-        if username == 'Admin' and password == 'Tongza17':
+        if username == 'Admin' and password == 'blwe hncc xggm igyo':
             user = User('Admin')
             login_user(user, remember=True)
             next_page = request.args.get('next')
@@ -442,7 +444,13 @@ def document_email(doc_type, doc_id):
             return redirect(url_for('document_view', doc_type=doc_type, doc_id=doc_id))
             
         except Exception as e:
-            flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+            error_msg = str(e)
+            if 'Authentication unsuccessful' in error_msg or '5.7.3' in error_msg:
+                flash('การเข้าสู่ระบบอีเมลล้มแ้ลว: กรุณาตรวจสอบรหัสผ่าน (App Password) ในไฟล์ app.py', 'error')
+            elif '535' in error_msg:
+                flash('การเข้าสู่ระบบอีเมลล้มแ้ลว: App Password ไม่ถูกต้อง หรือต้องใช้ App Password แทนที่รหัสผ่านปกติ', 'error')
+            else:
+                flash(f'เกิดข้อผิดพลาด: {error_msg}', 'error')
             return redirect(url_for('document_email', doc_type=doc_type, doc_id=doc_id))
     
     # GET request - show email form
@@ -831,3 +839,4 @@ if __name__ == '__main__':
             db.session.add(company)
             db.session.commit()
     app.run(debug=True, port=5000)
+
