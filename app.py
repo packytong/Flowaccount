@@ -3,10 +3,11 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_mail import Mail, Message
 from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
-from playwright.sync_api import sync_playwright
+import pdfkit
 from datetime import datetime, date, timedelta
 import os
 import io
+import platform
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'flowaccount-local-secret-key-2026'
@@ -30,6 +31,15 @@ app.config['MAIL_DEFAULT_SENDER'] = ('FlowAccount', 'pattanuan.ppcloud@gmail.com
 
 mail = Mail(app)
 db.init_app(app)
+
+# pdfkit configuration for wkhtmltopdf
+WKHTMLTOPDF_PATH = os.environ.get('WKHTMLTOPDF_PATH', 
+    r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe' if platform.system() == 'Windows' else '/usr/bin/wkhtmltopdf')
+
+if os.path.exists(WKHTMLTOPDF_PATH):
+    pdfkit_config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
+else:
+    pdfkit_config = None  # Use system default
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -413,19 +423,31 @@ def document_email(doc_type, doc_id):
             return redirect(url_for('document_email', doc_type=doc_type, doc_id=doc_id))
         
         try:
-            # Generate PDF using Playwright (Chromium)
+            # Generate PDF using pdfkit (wkhtmltopdf)
             html_content = render_template('document_pdf.html',
                                            doc_type=doc_type,
                                            doc_info=DOC_TYPES[doc_type],
                                            document=document,
                                            company=company)
             
-            with sync_playwright() as p:
-                browser = p.chromium.launch()
-                page = browser.new_page()
-                page.set_content(html_content)
-                pdf_bytes = page.pdf(format='A4', print_background=True)
-                browser.close()
+            # PDF options
+            options = {
+                'page-size': 'A4',
+                'margin-top': '15mm',
+                'margin-right': '15mm',
+                'margin-bottom': '15mm',
+                'margin-left': '15mm',
+                'encoding': 'UTF-8',
+                'enable-local-file-access': None,
+                'load-error-handling': 'ignore',
+                'load-media-error-handling': 'ignore'
+            }
+            
+            # Generate PDF
+            if pdfkit_config:
+                pdf_bytes = pdfkit.from_string(html_content, False, options=options, configuration=pdfkit_config)
+            else:
+                pdf_bytes = pdfkit.from_string(html_content, False, options=options)
             
             pdf_buffer = io.BytesIO(pdf_bytes)
             
