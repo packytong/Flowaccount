@@ -36,6 +36,11 @@
                 <i class="ri-settings-3-line"></i>
                 <span>ข้อมูลบริษัท</span>
             </a>
+            <div class="nav-section-title">บัญชี</div>
+            <a href="{{ url_for('logout') }}" class="nav-item">
+                <i class="ri-logout-box-r-line" style="color: #ef4444;"></i>
+                <span>ออกจากระบบ</span>
+            </a>
         </nav>
     </aside>
 
@@ -47,6 +52,12 @@
                 <i class="ri-menu-line"></i>
             </button>
             <div class="topbar-right">
+                {% if current_user.is_authenticated %}
+                <span class="current-date" style="margin-right: 16px;">
+                    <i class="ri-user-line"></i>
+                    {{ current_user.username }}
+                </span>
+                {% endif %}
                 <span class="current-date">
                     <i class="ri-calendar-line"></i>
                     {{ now().strftime('%d/%m/%Y') if now is defined else '' }}

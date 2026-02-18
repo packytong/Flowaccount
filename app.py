@@ -1,4 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
 from datetime import datetime, date, timedelta
 import os
@@ -12,10 +14,35 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 db.init_app(app)
 
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'กรุณาเข้าสู่ระบบก่อน'
+login_manager.login_message_category = 'warning'
+
+# Simple user class for Flask-Login
+class User:
+    def __init__(self, username):
+        self.id = username
+        self.username = username
+        self.is_active = True
+        self.is_authenticated = True
+        self.is_anonymous = False
+    
+    def get_id(self):
+        return self.id
+
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id == 'Admin':
+        return User('Admin')
+    return None
+
 # Make doc_types available to all templates
 @app.context_processor
 def inject_doc_types():
-    return dict(doc_types=DOC_TYPES, doc_statuses=DOC_STATUSES, now=datetime.now)
+    return dict(doc_types=DOC_TYPES, doc_statuses=DOC_STATUSES, now=datetime.now, current_user=current_user)
 
 
 def generate_doc_number(doc_type):
@@ -38,8 +65,39 @@ def generate_doc_number(doc_type):
     return f"{prefix_pattern}{new_num:04d}"
 
 
+# ==================== AUTHENTICATION ====================
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if username == 'Admin' and password == 'Tongza17':
+            user = User('Admin')
+            login_user(user, remember=True)
+            next_page = request.args.get('next')
+            flash('เข้าสู่ระบบสำเร็จ', 'success')
+            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+        else:
+            flash('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error')
+    
+    return render_template('login.html')
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('ออกจากระบบเรียบร้อย', 'success')
+    return redirect(url_for('login'))
+
+
 # ==================== DASHBOARD ====================
 @app.route('/')
+@login_required
 def dashboard():
     stats = {}
     for doc_type, info in DOC_TYPES.items():
@@ -53,6 +111,7 @@ def dashboard():
 
 # ==================== DOCUMENT LIST ====================
 @app.route('/documents/<doc_type>')
+@login_required
 def document_list(doc_type):
     if doc_type not in DOC_TYPES:
         flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
@@ -127,6 +186,7 @@ def _collect_descendants(doc, chain):
 
 # ==================== CREATE DOCUMENT ====================
 @app.route('/documents/<doc_type>/new', methods=['GET', 'POST'])
+@login_required
 def document_new(doc_type):
     if doc_type not in DOC_TYPES:
         flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
@@ -152,6 +212,7 @@ def document_new(doc_type):
 
 # ==================== EDIT DOCUMENT ====================
 @app.route('/documents/<doc_type>/<int:doc_id>/edit', methods=['GET', 'POST'])
+@login_required
 def document_edit(doc_type, doc_id):
     if doc_type not in DOC_TYPES:
         flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
@@ -291,6 +352,7 @@ def save_document(doc_type, document):
 
 # ==================== VIEW DOCUMENT ====================
 @app.route('/documents/<doc_type>/<int:doc_id>')
+@login_required
 def document_view(doc_type, doc_id):
     if doc_type not in DOC_TYPES:
         flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
@@ -314,6 +376,7 @@ def document_view(doc_type, doc_id):
 
 # ==================== DELETE DOCUMENT ====================
 @app.route('/api/documents/<int:doc_id>', methods=['DELETE'])
+@login_required
 def document_delete(doc_id):
     document = Document.query.get_or_404(doc_id)
     doc_type = document.doc_type
@@ -324,6 +387,7 @@ def document_delete(doc_id):
 
 # ==================== STATUS UPDATE ====================
 @app.route('/api/documents/<int:doc_id>/status', methods=['POST'])
+@login_required
 def document_update_status(doc_id):
     document = Document.query.get_or_404(doc_id)
     data = request.json
@@ -344,6 +408,7 @@ def document_update_status(doc_id):
 
 # ==================== CONVERT DOCUMENT ====================
 @app.route('/documents/<doc_type>/<int:doc_id>/convert/<target_type>')
+@login_required
 def document_convert(doc_type, doc_id, target_type):
     """Convert a document to another type (e.g. quotation → billing)"""
     if doc_type not in DOC_TYPES or target_type not in DOC_TYPES:
@@ -470,6 +535,7 @@ def document_convert(doc_type, doc_id, target_type):
 
 # ==================== SETTINGS ====================
 @app.route('/settings', methods=['GET', 'POST'])
+@login_required
 def settings():
     company = Company.query.first()
 
@@ -516,6 +582,7 @@ def settings():
 
 # ==================== API ====================
 @app.route('/api/customers')
+@login_required
 def api_customers():
     search = request.args.get('q', '')
     query = Customer.query
@@ -526,6 +593,7 @@ def api_customers():
 
 
 @app.route('/api/customers', methods=['POST'])
+@login_required
 def api_create_customer():
     data = request.json
     customer = Customer(
@@ -605,6 +673,7 @@ def baht_text(value):
 
 
 @app.route('/document/<int:doc_id>/duplicate')
+@login_required
 def duplicate_document(doc_id):
     original_doc = Document.query.get_or_404(doc_id)
     
@@ -663,6 +732,7 @@ def duplicate_document(doc_id):
 
 
 @app.route('/api/customers')
+@login_required
 def get_customers():
     customers = Customer.query.order_by(Customer.name).all()
     return jsonify([c.to_dict() for c in customers])
