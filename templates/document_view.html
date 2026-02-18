@@ -20,6 +20,9 @@
     <button class="btn btn-primary" onclick="window.print()">
         <i class="ri-printer-line"></i> พิมพ์ / PDF
     </button>
+    <a href="{{ url_for('document_email', doc_type=doc_type, doc_id=document.id) }}" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+        <i class="ri-mail-send-line"></i> ส่งอีเมล
+    </a>
 </div>
 
 <!-- A4 Document Preview -->

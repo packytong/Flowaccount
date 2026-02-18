@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ doc_info.name_th }} {{ document.doc_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Sarabun', 'TH Sarabun New', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid {{ doc_info.color }};
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .company-name {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .company-detail {
+            font-size: 9pt;
+            color: #666;
+        }
+        
+        .doc-title-box {
+            text-align: right;
+        }
+        
+        .doc-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: {{ doc_info.color }};
+            margin-bottom: 5px;
+        }
+        
+        .doc-number {
+            font-size: 11pt;
+            color: #666;
+        }
+        
+        .doc-meta {
+            margin-top: 10px;
+            font-size: 9pt;
+        }
+        
+        .doc-meta-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .meta-label {
+            color: {{ doc_info.color }};
+            font-weight: bold;
+        }
+        
+        .customer-section {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 3px solid {{ doc_info.color }};
+        }
+        
+        .customer-label {
+            font-size: 9pt;
+            color: {{ doc_info.color }};
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .customer-name {
+            font-weight: bold;
+            font-size: 12pt;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        thead {
+            background: {{ doc_info.color }};
+            color: white;
+        }
+        
+        th, td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            font-weight: bold;
+            font-size: 10pt;
+        }
+        
+        .col-no { width: 5%; text-align: center; }
+        .col-desc { width: 45%; }
+        .col-qty { width: 15%; text-align: right; }
+        .col-price { width: 20%; text-align: right; }
+        .col-amt { width: 20%; text-align: right; }
+        
+        tbody tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .summary {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .summary-table {
+            width: 300px;
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .summary-row.grand {
+            font-size: 12pt;
+            font-weight: bold;
+            color: {{ doc_info.color }};
+            border-top: 2px solid {{ doc_info.color }};
+            border-bottom: none;
+            padding-top: 10px;
+            margin-top: 5px;
+        }
+        
+        .baht-text {
+            margin-top: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        .signatures {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .signature-box {
+            width: 200px;
+            text-align: center;
+        }
+        
+        .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 50px;
+            padding-top: 5px;
+        }
+        
+        .notes {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f9f9f9;
+            font-size: 9pt;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            font-size: 8pt;
+            color: #999;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-name">{{ company.name if company else 'บริษัทของคุณ' }}</div>
+            <div class="company-detail">
+                {{ company.address | replace('\n', '<br>') | safe if company else '' }}<br>
+                {% if company and company.tax_id %}เลขประจำตัวผู้เสียภาษี: {{ company.tax_id }}{% endif %}
+                {% if company and company.phone %} | โทร: {{ company.phone }}{% endif %}
+            </div>
+        </div>
+        <div class="doc-title-box">
+            <div class="doc-title">{{ doc_info.name_th }}</div>
+            <div class="doc-number">{{ document.doc_number }}</div>
+            <div class="doc-meta">
+                <div class="doc-meta-row">
+                    <span class="meta-label">วันที่:</span>
+                    <span>{{ document.doc_date.strftime('%d/%m/%Y') if document.doc_date else '-' }}</span>
+                </div>
+                <div class="doc-meta-row">
+                    <span class="meta-label">ครบกำหนด:</span>
+                    <span>{{ document.due_date.strftime('%d/%m/%Y') if document.due_date else '-' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Customer -->
+    <div class="customer-section">
+        <div class="customer-label">ลูกค้า</div>
+        <div class="customer-name">{{ document.customer.name if document.customer else 'ลูกค้าทั่วไป' }}</div>
+        {% if document.customer %}
+        <div>{{ document.customer.address }}</div>
+        {% if document.customer.tax_id %}
+        <div>เลขประจำตัวผู้เสียภาษี: {{ document.customer.tax_id }}</div>
+        {% endif %}
+        {% endif %}
+    </div>
+    
+    <!-- Items -->
+    <table>
+        <thead>
+            <tr>
+                <th class="col-no">#</th>
+                <th class="col-desc">รายละเอียด</th>
+                <th class="col-qty">จำนวน</th>
+                <th class="col-price">ราคาต่อหน่วย</th>
+                <th class="col-amt">ยอดรวม</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in document.items %}
+            <tr>
+                <td class="col-no">{{ loop.index }}</td>
+                <td class="col-desc">
+                    <strong>{{ item.description }}</strong>
+                    {% if item.details %}<br><small>{{ item.details }}</small>{% endif %}
+                    {% if item.unit %}<br><small>หน่วย: {{ item.unit }}</small>{% endif %}
+                </td>
+                <td class="col-qty">{{ "%.2f"|format(item.quantity) }}</td>
+                <td class="col-price">{{ "%.2f"|format(item.unit_price) }}</td>
+                <td class="col-amt">{{ "%.2f"|format(item.amount) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Summary -->
+    <div class="summary">
+        <div class="summary-table">
+            <div class="summary-row">
+                <span>รวมเป็นเงิน</span>
+                <span>{{ "%.2f"|format(document.subtotal) }}</span>
+            </div>
+            {% if document.discount_amount > 0 %}
+            <div class="summary-row">
+                <span>ส่วนลด {{ document.discount_percent }}%</span>
+                <span>-{{ "%.2f"|format(document.discount_amount) }}</span>
+            </div>
+            {% endif %}
+            {% if document.vat_enabled %}
+            <div class="summary-row">
+                <span>ภาษีมูลค่าเพิ่ม 7%</span>
+                <span>{{ "%.2f"|format(document.vat_amount) }}</span>
+            </div>
+            {% endif %}
+            <div class="summary-row grand">
+                <span>จำนวนเงินรวมทั้งสิ้น</span>
+                <span>{{ "%.2f"|format(document.grand_total) }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Baht Text -->
+    <div class="baht-text">
+        ({{ document.grand_total|baht_text }})
+    </div>
+    
+    <!-- Notes -->
+    {% if document.notes %}
+    <div class="notes">
+        <strong>หมายเหตุ:</strong><br>
+        {{ document.notes | replace('\n', '<br>') | safe }}
+    </div>
+    {% endif %}
+    
+    <!-- Signatures -->
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-line">
+                ผู้เสนอราคา / ผู้รับเงิน
+            </div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line">
+                ผู้อนุมัติ
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        เอกสารนี้สร้างจากระบบ FlowAccount | {{ doc_info.name_th }} {{ document.doc_number }}
+    </div>
+</body>
+</html>

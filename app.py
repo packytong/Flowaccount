@@ -1,9 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_mail import Mail, Message
 from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
 from datetime import datetime, date, timedelta
+from weasyprint import HTML, CSS
 import os
+import io
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'flowaccount-local-secret-key-2026'
@@ -12,6 +15,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
+# Flask-Mail Configuration
+# หมายเหตุ: ต้องใช้ Gmail App Password (ไม่ใช่รหัสผ่านปกติ)
+# สร้างได้ที่: Google Account > Security > 2-Step Verification > App passwords
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'pattanuan.ppcloud@gmail.com'
+app.config['MAIL_PASSWORD'] = 'Tongza17'  # TODO: เปลี่ยนเป็น Gmail App Password
+app.config['MAIL_DEFAULT_SENDER'] = ('FlowAccount', 'pattanuan.ppcloud@gmail.com')
+
+mail = Mail(app)
 db.init_app(app)
 
 # Initialize Flask-Login
@@ -372,6 +387,75 @@ def document_view(doc_type, doc_id):
                            company=company,
                            linked_docs=linked_docs,
                            source_doc=source_doc)
+
+
+# ==================== EMAIL DOCUMENT ====================
+@app.route('/documents/<doc_type>/<int:doc_id>/email', methods=['GET', 'POST'])
+@login_required
+def document_email(doc_type, doc_id):
+    if doc_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+    
+    document = Document.query.get_or_404(doc_id)
+    company = Company.query.first()
+    
+    if request.method == 'POST':
+        to_email = request.form.get('to_email', '').strip()
+        cc_email = request.form.get('cc_email', '').strip()
+        subject = request.form.get('subject', '').strip()
+        message_body = request.form.get('message', '').strip()
+        
+        if not to_email:
+            flash('กรุณาระบุอีเมลผู้รับ', 'error')
+            return redirect(url_for('document_email', doc_type=doc_type, doc_id=doc_id))
+        
+        try:
+            # Generate PDF
+            html_content = render_template('document_pdf.html',
+                                           doc_type=doc_type,
+                                           doc_info=DOC_TYPES[doc_type],
+                                           document=document,
+                                           company=company)
+            
+            pdf_buffer = io.BytesIO()
+            HTML(string=html_content).write_pdf(pdf_buffer)
+            pdf_buffer.seek(0)
+            
+            # Create email
+            msg = Message(
+                subject=subject or f"{DOC_TYPES[doc_type]['name_th']} {document.doc_number}",
+                recipients=[to_email],
+                cc=[cc_email] if cc_email else [],
+                body=message_body,
+                sender=('FlowAccount', 'pattanuan.ppcloud@gmail.com')
+            )
+            
+            # Attach PDF
+            filename = f"{document.doc_number}.pdf"
+            msg.attach(filename, 'application/pdf', pdf_buffer.read())
+            
+            # Send email
+            mail.send(msg)
+            
+            flash('ส่งอีเมลสำเร็จ', 'success')
+            return redirect(url_for('document_view', doc_type=doc_type, doc_id=doc_id))
+            
+        except Exception as e:
+            flash(f'เกิดข้อผิดพลาด: {str(e)}', 'error')
+            return redirect(url_for('document_email', doc_type=doc_type, doc_id=doc_id))
+    
+    # GET request - show email form
+    default_subject = f"{DOC_TYPES[doc_type]['name_th']} {document.doc_number} จาก {company.name if company else 'บริษัทของคุณ'}"
+    default_message = f"เรียน {document.customer.name if document.customer else 'ลูกค้า'}\n\n{company.name if company else 'บริษัทของคุณ'} ได้แนบเอกสาร {DOC_TYPES[doc_type]['name_th']} เลขที่ {document.doc_number} มาให้พิจารณา\n\nด้วยความเคารพ\n{company.name if company else ''}"
+    
+    return render_template('document_email.html',
+                           doc_type=doc_type,
+                           doc_info=DOC_TYPES[doc_type],
+                           document=document,
+                           company=company,
+                           default_subject=default_subject,
+                           default_message=default_message)
 
 
 # ==================== DELETE DOCUMENT ====================
