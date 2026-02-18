@@ -3,8 +3,8 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_mail import Mail, Message
 from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
+from xhtml2pdf import pisa
 from datetime import datetime, date, timedelta
-from weasyprint import HTML, CSS
 import os
 import io
 
@@ -411,7 +411,7 @@ def document_email(doc_type, doc_id):
             return redirect(url_for('document_email', doc_type=doc_type, doc_id=doc_id))
         
         try:
-            # Generate PDF
+            # Generate PDF using xhtml2pdf
             html_content = render_template('document_pdf.html',
                                            doc_type=doc_type,
                                            doc_info=DOC_TYPES[doc_type],
@@ -419,7 +419,7 @@ def document_email(doc_type, doc_id):
                                            company=company)
             
             pdf_buffer = io.BytesIO()
-            HTML(string=html_content).write_pdf(pdf_buffer)
+            pisa.CreatePDF(html_content, dest=pdf_buffer)
             pdf_buffer.seek(0)
             
             # Create email
