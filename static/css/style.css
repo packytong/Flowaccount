@@ -1928,12 +1928,20 @@ textarea.form-control {
     .page-header,
     .nav-item,
     .logo,
+    .logo *,
     .menu-toggle,
     .ri-cloud-line,
     .ri-menu-line,
-    [class^="ri-"],
-    button:not(.doc-print button) {
+    i[class^="ri-"],
+    i[class*=" ri-"],
+    svg,
+    .icon,
+    button:not(.doc-print button),
+    .sidebar-header,
+    .sidebar-nav {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
     }
 
     .main-content {
