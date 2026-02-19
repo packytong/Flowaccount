@@ -17,9 +17,9 @@
         <i class="ri-file-copy-line"></i> สร้างซ้ำ
     </a>
     {% endif %}
-    <button class="btn btn-primary" onclick="window.print()">
+    <a href="{{ url_for('document_pdf', doc_type=doc_type, doc_id=document.id) }}" class="btn btn-primary" target="_blank">
         <i class="ri-printer-line"></i> พิมพ์
-    </button>
+    </a>
     <a href="{{ url_for('document_pdf', doc_type=doc_type, doc_id=document.id) }}" class="btn btn-primary" target="_blank" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
         <i class="ri-file-pdf-line"></i> ดู PDF
     </a>
