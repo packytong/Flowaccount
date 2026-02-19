@@ -1997,6 +1997,16 @@ textarea.form-control {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
+    
+    /* ลดระยะห่างระหว่างข้อมูลบริษัทกับลูกค้า */
+    .doc-print-customer {
+        margin-top: 5px !important;
+        margin-bottom: 15px !important;
+    }
+    
+    .doc-print-header {
+        margin-bottom: 5px !important;
+    }
 }
 
 /* ========== ANIMATIONS ========== */
