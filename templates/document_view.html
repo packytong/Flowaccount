@@ -2,6 +2,32 @@
 
 {% block title %}{{ doc_info.name_th }} {{ document.doc_number }}{% endblock %}
 
+{% block head %}
+<style>
+    @media print {
+        @page {
+            size: A4;
+            margin: 1cm;
+            @top-center {
+                content: element(header);
+            }
+        }
+        
+        .running-header {
+            position: running(header);
+            width: 100%;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .signature-section {
+            page-break-before: always;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Action Buttons -->
 <div class="doc-view-actions">
