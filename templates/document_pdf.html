@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ doc_info.name_th }} {{ document.doc_number }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
     <style>
         @page {
-            size: A4;
-            margin: 15mm;
+            size: A4 portrait;
+            margin: 1.5cm;
+            @bottom-center {
+                content: "หน้า " counter(page) " จาก " counter(pages);
+                font-size: 9pt;
+                color: #666;
+            }
         }
         
         * {
@@ -17,17 +21,18 @@
         }
         
         body {
-            font-family: 'Sarabun', sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            color: #333;
+            font-family: 'TH Sarabun New', 'Sarabun', 'Angsana New', sans-serif;
+            font-size: 14pt;
+            line-height: 1.4;
+            color: #000;
         }
         
+        /* Header */
         .header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
             border-bottom: 2px solid {{ doc_info.color }};
         }
         
@@ -36,71 +41,81 @@
         }
         
         .company-name {
-            font-size: 14pt;
+            font-size: 16pt;
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         
         .company-detail {
-            font-size: 9pt;
-            color: #666;
+            font-size: 11pt;
+            color: #333;
         }
         
         .doc-title-box {
             text-align: right;
+            min-width: 200px;
         }
         
         .doc-title {
-            font-size: 18pt;
+            font-size: 22pt;
             font-weight: bold;
             color: {{ doc_info.color }};
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         
         .doc-number {
-            font-size: 11pt;
-            color: #666;
+            font-size: 12pt;
+            color: #333;
         }
         
         .doc-meta {
-            margin-top: 10px;
-            font-size: 9pt;
+            margin-top: 8px;
+            font-size: 11pt;
         }
         
-        .doc-meta-row {
+        .meta-row {
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
+            gap: 8px;
+            margin-bottom: 2px;
         }
         
         .meta-label {
             color: {{ doc_info.color }};
             font-weight: bold;
+            min-width: 60px;
         }
         
+        /* Customer */
         .customer-section {
-            margin: 20px 0;
-            padding: 10px;
-            background: #f9f9f9;
-            border-left: 3px solid {{ doc_info.color }};
+            margin: 15px 0;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-left: 4px solid {{ doc_info.color }};
         }
         
         .customer-label {
-            font-size: 9pt;
+            font-size: 10pt;
             color: {{ doc_info.color }};
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
         
         .customer-name {
             font-weight: bold;
+            font-size: 14pt;
+        }
+        
+        .customer-detail {
             font-size: 12pt;
         }
         
+        /* Items Table */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
+            margin: 15px 0;
+            font-size: 12pt;
         }
         
         thead {
@@ -108,91 +123,149 @@
             color: white;
         }
         
-        th, td {
-            padding: 8px 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        
         th {
+            padding: 8px 6px;
+            text-align: center;
             font-weight: bold;
-            font-size: 10pt;
+            font-size: 12pt;
+            border: 1px solid {{ doc_info.color }};
         }
         
-        .col-no { width: 5%; text-align: center; }
-        .col-desc { width: 45%; }
-        .col-qty { width: 15%; text-align: right; }
-        .col-price { width: 20%; text-align: right; }
-        .col-amt { width: 20%; text-align: right; }
+        td {
+            padding: 6px;
+            border: 1px solid #ddd;
+            vertical-align: top;
+        }
         
         tbody tr:nth-child(even) {
             background: #f9f9f9;
         }
         
-        .summary {
-            margin-top: 20px;
+        .col-no { width: 5%; text-align: center; }
+        .col-desc { width: 50%; text-align: left; }
+        .col-qty { width: 10%; text-align: right; }
+        .col-unit { width: 10%; text-align: center; }
+        .col-price { width: 12%; text-align: right; }
+        .col-amt { width: 13%; text-align: right; }
+        
+        /* Summary */
+        .summary-section {
+            margin-top: 15px;
             display: flex;
             justify-content: flex-end;
         }
         
         .summary-table {
-            width: 300px;
+            width: 280px;
+            font-size: 12pt;
         }
         
         .summary-row {
             display: flex;
             justify-content: space-between;
-            padding: 5px 0;
+            padding: 4px 0;
             border-bottom: 1px solid #eee;
         }
         
         .summary-row.grand {
-            font-size: 12pt;
+            font-size: 14pt;
             font-weight: bold;
             color: {{ doc_info.color }};
             border-top: 2px solid {{ doc_info.color }};
-            border-bottom: none;
-            padding-top: 10px;
+            border-bottom: 2px solid {{ doc_info.color }};
+            padding: 8px 0;
             margin-top: 5px;
         }
         
+        /* Baht Text */
         .baht-text {
-            margin-top: 20px;
+            margin-top: 15px;
             font-style: italic;
-            color: #666;
+            color: #333;
+            font-size: 12pt;
         }
         
+        /* Notes */
+        .notes-section {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            font-size: 11pt;
+        }
+        
+        .notes-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        /* Signatures */
         .signatures {
-            margin-top: 50px;
+            margin-top: 40px;
             display: flex;
             justify-content: space-between;
+            page-break-inside: avoid;
         }
         
         .signature-box {
-            width: 200px;
+            width: 180px;
             text-align: center;
         }
         
         .signature-line {
-            border-top: 1px solid #333;
-            margin-top: 50px;
+            border-top: 1px solid #000;
+            margin-top: 40px;
             padding-top: 5px;
+            font-size: 11pt;
         }
         
-        .notes {
-            margin-top: 20px;
-            padding: 10px;
-            background: #f9f9f9;
-            font-size: 9pt;
+        .signature-date {
+            margin-top: 10px;
+            font-size: 10pt;
+            color: #666;
         }
         
+        /* Stamp */
+        .stamp-box {
+            margin-top: 30px;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        
+        .stamp-placeholder {
+            width: 120px;
+            height: 120px;
+            border: 2px dashed #ccc;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 10pt;
+        }
+        
+        /* Footer */
         .footer {
             margin-top: 30px;
-            padding-top: 15px;
+            padding-top: 10px;
             border-top: 1px solid #ddd;
-            font-size: 8pt;
-            color: #999;
+            font-size: 9pt;
+            color: #666;
             text-align: center;
+        }
+        
+        /* Utility */
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        
+        /* Print optimization */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
@@ -211,11 +284,17 @@
             <div class="doc-title">{{ doc_info.name_th }}</div>
             <div class="doc-number">{{ document.doc_number }}</div>
             <div class="doc-meta">
-                <div class="doc-meta-row">
+                <div class="meta-row">
                     <span class="meta-label">วันที่:</span>
                     <span>{{ document.doc_date.strftime('%d/%m/%Y') if document.doc_date else '-' }}</span>
                 </div>
-                <div class="doc-meta-row">
+                {% if document.credit_days > 0 %}
+                <div class="meta-row">
+                    <span class="meta-label">เครดิต:</span>
+                    <span>{{ document.credit_days }} วัน</span>
+                </div>
+                {% endif %}
+                <div class="meta-row">
                     <span class="meta-label">ครบกำหนด:</span>
                     <span>{{ document.due_date.strftime('%d/%m/%Y') if document.due_date else '-' }}</span>
                 </div>
@@ -226,12 +305,13 @@
     <!-- Customer -->
     <div class="customer-section">
         <div class="customer-label">ลูกค้า</div>
-        <div class="customer-name">{{ document.customer.name if document.customer else 'ลูกค้าทั่วไป' }}</div>
+        <div class="customer-name">{{ document.customer.name if document.customer else 'ลูกค้าทั่วไป' }} {{ '(' + document.customer.branch + ')' if document.customer and document.customer.branch else '' }}</div>
         {% if document.customer %}
-        <div>{{ document.customer.address }}</div>
-        {% if document.customer.tax_id %}
-        <div>เลขประจำตัวผู้เสียภาษี: {{ document.customer.tax_id }}</div>
-        {% endif %}
+        <div class="customer-detail">
+            {{ document.customer.address }}<br>
+            {% if document.customer.tax_id %}เลขประจำตัวผู้เสียภาษี: {{ document.customer.tax_id }}{% endif %}
+            {% if document.customer.phone %} | โทร: {{ document.customer.phone }}{% endif %}
+        </div>
         {% endif %}
     </div>
     
@@ -239,11 +319,12 @@
     <table>
         <thead>
             <tr>
-                <th class="col-no">#</th>
+                <th class="col-no">ลำดับ</th>
                 <th class="col-desc">รายละเอียด</th>
                 <th class="col-qty">จำนวน</th>
-                <th class="col-price">ราคาต่อหน่วย</th>
-                <th class="col-amt">ยอดรวม</th>
+                <th class="col-unit">หน่วย</th>
+                <th class="col-price">ราคา/หน่วย</th>
+                <th class="col-amt">จำนวนเงิน</th>
             </tr>
         </thead>
         <tbody>
@@ -252,39 +333,56 @@
                 <td class="col-no">{{ loop.index }}</td>
                 <td class="col-desc">
                     <strong>{{ item.description }}</strong>
-                    {% if item.details %}<br><small>{{ item.details }}</small>{% endif %}
-                    {% if item.unit %}<br><small>หน่วย: {{ item.unit }}</small>{% endif %}
+                    {% if item.details %}<br>{{ item.details }}{% endif %}
                 </td>
-                <td class="col-qty">{{ "%.2f"|format(item.quantity) }}</td>
-                <td class="col-price">{{ "%.2f"|format(item.unit_price) }}</td>
-                <td class="col-amt">{{ "%.2f"|format(item.amount) }}</td>
+                <td class="col-qty">{{ "{:,.2f}".format(item.quantity) }}</td>
+                <td class="col-unit">{{ item.unit }}</td>
+                <td class="col-price">{{ "{:,.2f}".format(item.unit_price) }}</td>
+                <td class="col-amt">{{ "{:,.2f}".format(item.amount) }}</td>
             </tr>
             {% endfor %}
+            <!-- Empty rows for printing aesthetics -->
+            {% if document.items|length < 5 %}
+            {% for i in range(5 - document.items|length) %}
+            <tr>
+                <td class="col-no">&nbsp;</td>
+                <td class="col-desc">&nbsp;</td>
+                <td class="col-qty">&nbsp;</td>
+                <td class="col-unit">&nbsp;</td>
+                <td class="col-price">&nbsp;</td>
+                <td class="col-amt">&nbsp;</td>
+            </tr>
+            {% endfor %}
+            {% endif %}
         </tbody>
     </table>
     
     <!-- Summary -->
-    <div class="summary">
+    <div class="summary-section">
         <div class="summary-table">
             <div class="summary-row">
                 <span>รวมเป็นเงิน</span>
-                <span>{{ "%.2f"|format(document.subtotal) }}</span>
+                <span>{{ "{:,.2f}".format(document.subtotal) }}</span>
             </div>
             {% if document.discount_amount > 0 %}
             <div class="summary-row">
                 <span>ส่วนลด {{ document.discount_percent }}%</span>
-                <span>-{{ "%.2f"|format(document.discount_amount) }}</span>
+                <span>-{{ "{:,.2f}".format(document.discount_amount) }}</span>
+            </div>
+            <div class="summary-row">
+                <span>ราคาหลังหักส่วนลด</span>
+                <span>{{ "{:,.2f}".format(document.after_discount) }}</span>
             </div>
             {% endif %}
             {% if document.vat_enabled %}
             <div class="summary-row">
                 <span>ภาษีมูลค่าเพิ่ม 7%</span>
-                <span>{{ "%.2f"|format(document.vat_amount) }}</span>
+                <span>{{ "{:,.2f}".format(document.vat_amount) }}</span>
             </div>
             {% endif %}
             <div class="summary-row grand">
                 <span>จำนวนเงินรวมทั้งสิ้น</span>
-                <span>{{ "%.2f"|format(document.grand_total) }}</span>
+                <span>{{ "{:,.2f}".format(document.grand_total) }}</span>
             </div>
         </div>
     </div>
@@ -296,9 +394,9 @@
     
     <!-- Notes -->
     {% if document.notes %}
-    <div class="notes">
-        <strong>หมายเหตุ:</strong><br>
-        {{ document.notes | replace('\n', '<br>') | safe }}
+    <div class="notes-section">
+        <div class="notes-label">หมายเหตุ:</div>
+        <div>{{ document.notes | replace('\n', '<br>') | safe }}</div>
     </div>
     {% endif %}
     
@@ -306,19 +404,33 @@
     <div class="signatures">
         <div class="signature-box">
             <div class="signature-line">
+                ในนาม {{ document.customer.name if document.customer else '_________________' }}
+            </div>
+            <div class="signature-date">
+                วันที่ _____/_____/________
+            </div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line">
                 ผู้เสนอราคา / ผู้รับเงิน
+            </div>
+            <div class="signature-date">
+                วันที่ _____/_____/________
             </div>
         </div>
         <div class="signature-box">
             <div class="signature-line">
                 ผู้อนุมัติ
             </div>
+            <div class="signature-date">
+                วันที่ _____/_____/________
+            </div>
         </div>
     </div>
     
     <!-- Footer -->
     <div class="footer">
-        เอกสารนี้สร้างจากระบบ FlowAccount | {{ doc_info.name_th }} {{ document.doc_number }}
+        {{ doc_info.name_th }} {{ document.doc_number }} | สร้างจากระบบ FlowAccount
     </div>
 </body>
 </html>

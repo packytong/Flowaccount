@@ -3,11 +3,10 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_mail import Mail, Message
 from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
-import pdfkit
+from xhtml2pdf import pisa
 from datetime import datetime, date, timedelta
 import os
 import io
-import platform
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'flowaccount-local-secret-key-2026'
@@ -31,15 +30,6 @@ app.config['MAIL_DEFAULT_SENDER'] = ('FlowAccount', 'pattanuan.ppcloud@gmail.com
 
 mail = Mail(app)
 db.init_app(app)
-
-# pdfkit configuration for wkhtmltopdf
-WKHTMLTOPDF_PATH = os.environ.get('WKHTMLTOPDF_PATH', 
-    r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe' if platform.system() == 'Windows' else '/usr/bin/wkhtmltopdf')
-
-if os.path.exists(WKHTMLTOPDF_PATH):
-    pdfkit_config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
-else:
-    pdfkit_config = None  # Use system default
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -399,6 +389,42 @@ def document_view(doc_type, doc_id):
                            company=company,
                            linked_docs=linked_docs,
                            source_doc=source_doc)
+
+
+# ==================== PDF DOWNLOAD ====================
+@app.route('/documents/<doc_type>/<int:doc_id>/pdf')
+@login_required
+def document_pdf(doc_type, doc_id):
+    if doc_type not in DOC_TYPES:
+        flash('ประเภทเอกสารไม่ถูกต้อง', 'error')
+        return redirect(url_for('dashboard'))
+    
+    document = Document.query.get_or_404(doc_id)
+    company = Company.query.first()
+    
+    # Render HTML template for PDF
+    html_content = render_template('document_pdf.html',
+                                   doc_type=doc_type,
+                                   doc_info=DOC_TYPES[doc_type],
+                                   document=document,
+                                   company=company)
+    
+    # Create PDF using xhtml2pdf
+    pdf_buffer = io.BytesIO()
+    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+    
+    if pisa_status.err:
+        flash('เกิดข้อผิดพลาดในการสร้าง PDF', 'error')
+        return redirect(url_for('document_view', doc_type=doc_type, doc_id=doc_id))
+    
+    pdf_buffer.seek(0)
+    
+    # Create response
+    response = make_response(pdf_buffer.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'inline; filename={document.doc_number}.pdf'
+    
+    return response
 
 
 # ==================== EMAIL DOCUMENT ====================
