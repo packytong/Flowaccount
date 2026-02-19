@@ -2007,6 +2007,22 @@ textarea.form-control {
     .doc-print-header {
         margin-bottom: 5px !important;
     }
+    
+    /* Running header - หัวบริษัทซ้ำทุกหน้า */
+    .doc-print {
+        position: relative;
+    }
+    
+    .doc-print-header {
+        page-break-inside: avoid;
+    }
+    
+    /* ซ่อน signature บนหน้าแรก แสดงเฉพาะหน้าสุดท้าย */
+    .doc-print-signatures {
+        page-break-inside: avoid;
+        break-before: page;
+        break-after: avoid;
+    }
 }
 
 /* ========== ANIMATIONS ========== */
