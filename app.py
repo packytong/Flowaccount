@@ -3,7 +3,13 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_mail import Mail, Message
 from functools import wraps
 from models import db, Company, Customer, Document, DocumentItem, DOC_TYPES, DOC_STATUSES
-from xhtml2pdf import pisa
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime, date, timedelta
 import os
 import io
@@ -402,29 +408,169 @@ def document_pdf(doc_type, doc_id):
     document = Document.query.get_or_404(doc_id)
     company = Company.query.first()
     
-    # Render HTML template for PDF
-    html_content = render_template('document_pdf.html',
-                                   doc_type=doc_type,
-                                   doc_info=DOC_TYPES[doc_type],
-                                   document=document,
-                                   company=company)
-    
-    # Create PDF using xhtml2pdf
-    pdf_buffer = io.BytesIO()
-    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
-    
-    if pisa_status.err:
-        flash('เกิดข้อผิดพลาดในการสร้าง PDF', 'error')
+    try:
+        # Create PDF using ReportLab
+        pdf_buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            pdf_buffer,
+            pagesize=A4,
+            rightMargin=1.5*cm,
+            leftMargin=1.5*cm,
+            topMargin=1.5*cm,
+            bottomMargin=1.5*cm
+        )
+        
+        # Container for elements
+        elements = []
+        
+        # Styles
+        styles = getSampleStyleSheet()
+        
+        # Try to register Thai font
+        try:
+            # Use standard Windows Thai font
+            thai_font = 'AngsanaNew'
+            pdfmetrics.registerFont(TTFont('AngsanaNew', 'C:/Windows/fonts/angsa.ttf'))
+        except:
+            try:
+                thai_font = 'Tahoma'
+                pdfmetrics.registerFont(TTFont('Tahoma', 'C:/Windows/fonts/tahoma.ttf'))
+            except:
+                thai_font = 'Helvetica'
+        
+        # Create styles with Thai font
+        style_title = ParagraphStyle(
+            'ThaiTitle',
+            parent=styles['Heading1'],
+            fontName=thai_font,
+            fontSize=16,
+            spaceAfter=6
+        )
+        style_normal = ParagraphStyle(
+            'ThaiNormal',
+            parent=styles['Normal'],
+            fontName=thai_font,
+            fontSize=11,
+            leading=14
+        )
+        style_small = ParagraphStyle(
+            'ThaiSmall',
+            parent=styles['Normal'],
+            fontName=thai_font,
+            fontSize=9,
+            leading=12
+        )
+        style_header = ParagraphStyle(
+            'ThaiHeader',
+            parent=styles['Normal'],
+            fontName=thai_font,
+            fontSize=14,
+            leading=18
+        )
+        
+        # Header - Company Info
+        if company:
+            elements.append(Paragraph(company.name or 'บริษัท', style_header))
+            if company.address:
+                elements.append(Paragraph(company.address, style_small))
+            if company.tax_id:
+                elements.append(Paragraph(f"เลขประจำตัวผู้เสียภาษี: {company.tax_id}", style_small))
+        
+        # Spacer
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Document Title
+        doc_type_name = DOC_TYPES.get(doc_type, {}).get('name_th', 'เอกสาร')
+        elements.append(Paragraph(f"<b>{doc_type_name}</b>", style_title))
+        elements.append(Paragraph(f"เลขที่: {document.doc_number}", style_normal))
+        elements.append(Paragraph(f"วันที่: {document.doc_date.strftime('%d/%m/%Y') if document.doc_date else '-'}", style_normal))
+        
+        # Spacer
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Customer Info
+        if document.customer:
+            elements.append(Paragraph(f"<b>ลูกค้า:</b> {document.customer.name}", style_normal))
+            if document.customer.address:
+                elements.append(Paragraph(document.customer.address, style_small))
+        
+        # Spacer
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Items Table
+        table_data = [['ลำดับ', 'รายละเอียด', 'จำนวน', 'หน่วย', 'ราคา/หน่วย', 'จำนวนเงิน']]
+        
+        for idx, item in enumerate(document.items, 1):
+            desc = item.description
+            if item.details:
+                desc += f"<br/><font size=8>{item.details}</font>"
+            table_data.append([
+                str(idx),
+                Paragraph(desc, style_small),
+                f"{item.quantity:,.2f}",
+                item.unit or '',
+                f"{item.unit_price:,.2f}",
+                f"{item.amount:,.2f}"
+            ])
+        
+        # Create table
+        table = Table(table_data, colWidths=[1*cm, 6*cm, 2*cm, 2*cm, 2.5*cm, 2.5*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), thai_font),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), thai_font),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        elements.append(table)
+        
+        # Spacer
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Summary
+        summary_data = [
+            ['รวมเป็นเงิน', f"{document.subtotal:,.2f}"]
+        ]
+        if document.discount_amount > 0:
+            summary_data.append(['ส่วนลด', f"-{document.discount_amount:,.2f}"])
+        if document.vat_enabled:
+            summary_data.append(['ภาษีมูลค่าเพิ่ม 7%', f"{document.vat_amount:,.2f}"])
+        summary_data.append(['จำนวนเงินทั้งหมด', f"<b>{document.grand_total:,.2f}</b>"])
+        
+        summary_table = Table(summary_data, colWidths=[10*cm, 4*cm])
+        summary_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -1), thai_font),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('LINEABOVE', (0, -1), (-1, -1), 2, colors.black),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightgrey),
+        ]))
+        
+        elements.append(summary_table)
+        
+        # Build PDF
+        doc.build(elements)
+        
+        pdf_buffer.seek(0)
+        
+        # Create response
+        response = make_response(pdf_buffer.read())
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'inline; filename={document.doc_number}.pdf'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'เกิดข้อผิดพลาดในการสร้าง PDF: {str(e)}', 'error')
         return redirect(url_for('document_view', doc_type=doc_type, doc_id=doc_id))
-    
-    pdf_buffer.seek(0)
-    
-    # Create response
-    response = make_response(pdf_buffer.read())
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'inline; filename={document.doc_number}.pdf'
-    
-    return response
 
 
 # ==================== EMAIL DOCUMENT ====================
