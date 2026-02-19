@@ -1906,9 +1906,16 @@ textarea.form-control {
 
 /* ========== PRINT STYLES ========== */
 @media print {
+    @page {
+        size: A4;
+        margin: 0.5cm 1cm 1cm 1cm;  /* top right bottom left */
+    }
+    
     body {
         background: white;
         color: black;
+        margin: 0;
+        padding: 0;
     }
 
     .sidebar,
@@ -1921,20 +1928,36 @@ textarea.form-control {
 
     .main-content {
         margin-left: 0;
+        padding: 0;
     }
 
     .page-content {
         padding: 0;
+        margin: 0;
     }
 
     .doc-view-container {
         box-shadow: none;
         border-radius: 0;
         max-width: 100%;
+        margin: 0;
+        padding: 0;
     }
 
     .doc-print {
-        padding: 20px;
+        padding: 0;
+        margin: 0;
+    }
+    
+    /* ลดขนาดส่วนหัว */
+    .doc-print-header {
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+    }
+    
+    /* ลดขนาดชื่อเอกสาร */
+    .doc-print-title {
+        font-size: 24pt;
     }
 }
 
