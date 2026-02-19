@@ -1977,6 +1977,26 @@ textarea.form-control {
     .doc-print-title {
         font-size: 24pt;
     }
+    
+    /* แสดงสีพื้นหลังของตาราง */
+    .doc-print-items thead {
+        background: #4fc3d4 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    .doc-print-items thead th {
+        color: white !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    /* แสดงสี grand total */
+    .doc-print-totals .total-row.grand {
+        background: rgba(79, 195, 212, 0.1) !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
 }
 
 /* ========== ANIMATIONS ========== */
