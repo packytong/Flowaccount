@@ -1918,11 +1918,21 @@ textarea.form-control {
         padding: 0;
     }
 
+    /* ซ่อนทุก elements ที่ไม่ต้องการ */
     .sidebar,
+    .sidebar *,
     .topbar,
+    .topbar *,
     .flash-container,
     .doc-view-actions,
-    .page-header {
+    .page-header,
+    .nav-item,
+    .logo,
+    .menu-toggle,
+    .ri-cloud-line,
+    .ri-menu-line,
+    [class^="ri-"],
+    button:not(.doc-print button) {
         display: none !important;
     }
 
